@@ -1,0 +1,12 @@
+{
+  "platformio-ide.autoPreloadEnv": true,
+  "files.associations": {
+    "*.ini": "ini"
+  },
+  "C_Cpp.default.configurationProvider": "platformio.platformio-ide",
+  "clangd.path": "C:\\Users\\DK8DE\\.platformio\\packages\\tool-clangd-esp\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--compile-commands-dir=d:/Rotor/Inklinometer_IIS2ICLXTR/.cache/clangd",
+    "--query-driver=C:/Users/DK8DE/.platformio/packages/toolchain-*/bin/*,C:/Users/DK8DE/.platformio/packages/tool-*/bin/*"
+  ]
+}

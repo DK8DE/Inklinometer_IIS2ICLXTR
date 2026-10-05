@@ -1,0 +1,25 @@
+---
+description: Hardware- und Projektkontext Inklinometer IIS2ICLX
+alwaysApply: true
+---
+
+# Inklinometer IIS2ICLX + ESP32-C3
+
+## Hardware
+- MCU: ESP32-C3 (Arduino / PlatformIO)
+- Sensor: ST IIS2ICLX (2-Achsen-Inklinometer / Accelerometer)
+- I2C-Adresse: `0x6A` (SA0 = GND)
+- WHO_AM_I: Register `0x0F`, Wert `0x6B`
+- SDA: GPIO4
+- SCL: GPIO5
+- I2C-Takt: 400 kHz
+
+## Build / Flash
+- Projektroot: PlatformIO (`platformio.ini`)
+- Environment: `esp32-c3`
+- Serial Monitor: 115200 Baud, USB-CDC aktiv (`ARDUINO_USB_CDC_ON_BOOT`)
+
+## Code-Konventionen
+- Sensorzugriff über Wire (I2C), keine SPI-Variante
+- Registerzugriffe mit IF_INC (Auto-Increment) für Mehrbyte-Reads
+- Keine unnötigen Markdown-Dateien anlegen

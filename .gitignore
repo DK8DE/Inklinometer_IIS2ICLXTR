@@ -1,0 +1,11 @@
+.pio
+.vscode/.browse.c_cpp.props.json
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+.clang_complete
+compile_commands.json
+*.pyc
+__pycache__/
+.DS_Store
+Thumbs.db
