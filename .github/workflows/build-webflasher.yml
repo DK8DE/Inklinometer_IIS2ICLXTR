@@ -85,39 +85,39 @@ jobs:
 
           # ESP Web Tools: ein Teil = factory.bin @ 0
           python3 - <<'PY'
-import json
-from pathlib import Path
-import os
-version = os.environ["FW_VERSION"]
-data = {
-  "name": "Inklinometer IIS2ICLX",
-  "version": version,
-  "new_install_prompt_erase": True,
-  "builds": [
-    {
-      "chipFamily": "ESP32-C3",
-      "parts": [
-        {"path": "factory.bin", "offset": 0}
-      ]
-    }
-  ]
-}
-Path("IMGs/manifest.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-PY
+          import json
+          from pathlib import Path
+          import os
+          version = os.environ["FW_VERSION"]
+          data = {
+            "name": "Inklinometer IIS2ICLX",
+            "version": version,
+            "new_install_prompt_erase": True,
+            "builds": [
+              {
+                "chipFamily": "ESP32-C3",
+                "parts": [{"path": "factory.bin", "offset": 0}],
+              }
+            ],
+          }
+          Path("IMGs/manifest.json").write_text(
+              json.dumps(data, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
 
           # Kurzer Hinweis im Artifact
           cat > "$OUT_DIR/README.txt" <<EOF
-Inklinometer IIS2ICLX ${VERSION}
+          Inklinometer IIS2ICLX ${VERSION}
 
-factory.bin  - Komplettflash ab Adresse 0 (esptool / Webflasher)
-firmware.bin - nur App fuer SoftAP-OTA (Web-Tab Update)
+          factory.bin  - Komplettflash ab Adresse 0 (esptool / Webflasher)
+          firmware.bin - nur App fuer SoftAP-OTA (Web-Tab Update)
 
-Beispiel Komplettflash:
-  esptool.py --chip esp32c3 write_flash 0x0 factory.bin
+          Beispiel Komplettflash:
+            esptool.py --chip esp32c3 write_flash 0x0 factory.bin
 
-Beispiel OTA:
-  SoftAP starten -> http://192.168.4.1 -> Update -> firmware.bin
-EOF
+          Beispiel OTA:
+            SoftAP starten -> http://192.168.4.1 -> Update -> firmware.bin
+          EOF
 
           # Pages-Bundle
           rm -rf site
