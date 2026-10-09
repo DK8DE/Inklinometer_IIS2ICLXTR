@@ -47,7 +47,7 @@ jobs:
       - name: Build firmware (esp32-c3)
         run: pio run -e esp32-c3
 
-      - name: Prepare IMGs for ESP Web Tools
+      - name: Prepare flash images
         id: meta
         run: |
           set -euo pipefail
@@ -62,61 +62,78 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Firmware-Version: ${VERSION}"
-
-          cp "$BUILD_DIR/bootloader.bin" "$OUT_DIR/bootloader.bin"
-          cp "$BUILD_DIR/partitions.bin" "$OUT_DIR/partitions.bin"
-          cp "$BUILD_DIR/firmware.bin" "$OUT_DIR/firmware.bin"
+          export FW_VERSION="${VERSION}"
 
           BOOT_APP0="$(find ~/.platformio/packages -name 'boot_app0.bin' | head -n1)"
           if [ -z "$BOOT_APP0" ]; then
             echo "boot_app0.bin nicht gefunden" >&2
             exit 1
           fi
-          cp "$BOOT_APP0" "$OUT_DIR/boot_app0.bin"
 
-          # Offsets wie Arduino-ESP32 / PlatformIO (4 MB Dual-OTA)
-          cat > "$OUT_DIR/manifest.json" <<EOF
-          {
-            "name": "Inklinometer IIS2ICLX",
-            "version": "${VERSION}",
-            "new_install_prompt_erase": true,
-            "builds": [
-              {
-                "chipFamily": "ESP32-C3",
-                "parts": [
-                  { "path": "bootloader.bin", "offset": 0 },
-                  { "path": "partitions.bin", "offset": 32768 },
-                  { "path": "boot_app0.bin", "offset": 57344 },
-                  { "path": "firmware.bin", "offset": 65536 }
-                ]
-              }
-            ]
-          }
-          EOF
+          # App-Image für SoftAP-OTA / esptool ab 0x10000
+          cp "$BUILD_DIR/firmware.bin" "$OUT_DIR/firmware.bin"
 
-          # Kompaktes JSON (ohne führende Einrückung aus dem Heredoc)
+          # Ein Komplettimage ab Flash-Adresse 0 (Bootloader + Partitionen + App)
+          pip install -q esptool
+          python -m esptool --chip esp32c3 merge_bin \
+            -o "$OUT_DIR/factory.bin" \
+            --flash_mode dio --flash_freq 80m --flash_size 4MB \
+            0x0 "$BUILD_DIR/bootloader.bin" \
+            0x8000 "$BUILD_DIR/partitions.bin" \
+            0xe000 "$BOOT_APP0" \
+            0x10000 "$BUILD_DIR/firmware.bin"
+
+          # ESP Web Tools: ein Teil = factory.bin @ 0
           python3 - <<'PY'
-          import json
-          from pathlib import Path
-          p = Path("IMGs/manifest.json")
-          data = json.loads(p.read_text(encoding="utf-8"))
-          p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-          PY
+import json
+from pathlib import Path
+import os
+version = os.environ["FW_VERSION"]
+data = {
+  "name": "Inklinometer IIS2ICLX",
+  "version": version,
+  "new_install_prompt_erase": True,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        {"path": "factory.bin", "offset": 0}
+      ]
+    }
+  ]
+}
+Path("IMGs/manifest.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
 
-          # Pages-Bundle: Webflasher-UI + IMGs/
+          # Kurzer Hinweis im Artifact
+          cat > "$OUT_DIR/README.txt" <<EOF
+Inklinometer IIS2ICLX ${VERSION}
+
+factory.bin  - Komplettflash ab Adresse 0 (esptool / Webflasher)
+firmware.bin - nur App fuer SoftAP-OTA (Web-Tab Update)
+
+Beispiel Komplettflash:
+  esptool.py --chip esp32c3 write_flash 0x0 factory.bin
+
+Beispiel OTA:
+  SoftAP starten -> http://192.168.4.1 -> Update -> firmware.bin
+EOF
+
+          # Pages-Bundle
           rm -rf site
           mkdir -p site/IMGs
           cp webflasher/index.html site/index.html
-          cp IMGs/* site/IMGs/
-          ls -la IMGs site site/IMGs
+          cp "$OUT_DIR/factory.bin" "$OUT_DIR/firmware.bin" "$OUT_DIR/manifest.json" site/IMGs/
+          ls -la IMGs site/IMGs
 
-      - name: Upload IMGs artifact
+      - name: Upload flash binaries
         uses: actions/upload-artifact@v4
         with:
-          name: IMGs-${{ steps.meta.outputs.version }}
+          name: Inklinometer-${{ steps.meta.outputs.version }}
           path: |
-            IMGs/
-            webflasher/index.html
+            IMGs/factory.bin
+            IMGs/firmware.bin
+            IMGs/README.txt
           retention-days: 90
           if-no-files-found: error
 

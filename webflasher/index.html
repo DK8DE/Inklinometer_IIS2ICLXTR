@@ -16,6 +16,7 @@
     }
     code { padding: 0.1rem 0.35rem; border-radius: 4px; background: color-mix(in srgb, CanvasText 12%, Canvas); }
     .hint { opacity: 0.8; font-size: 0.95rem; }
+    ul { padding-left: 1.2rem; }
   </style>
 </head>
 <body>
@@ -25,6 +26,12 @@
   <p>
     <esp-web-install-button manifest="./IMGs/manifest.json"></esp-web-install-button>
   </p>
+  <p class="hint">Der Webflasher schreibt <code>factory.bin</code> (Komplettimage ab Adresse&nbsp;0).</p>
+  <p>Downloads:</p>
+  <ul>
+    <li><a href="./IMGs/factory.bin">factory.bin</a> – Komplettflash (esptool / Erstinstallation)</li>
+    <li><a href="./IMGs/firmware.bin">firmware.bin</a> – nur App für SoftAP-OTA (Web-Tab Update)</li>
+  </ul>
   <p class="hint">
     Nach dem Flashen SoftAP per Taster (GPIO0) starten, dann
     <code>http://192.168.4.1</code> (Login <code>admin</code> / <code>Rotorconfig</code>).

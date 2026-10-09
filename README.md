@@ -157,11 +157,15 @@ Sensor **senkrecht** in der Elevationsebene montieren (beide Achsen X/Y in der K
 
 Bei Push auf `main` baut die Action `.github/workflows/build-webflasher.yml`:
 
-- `IMGs/bootloader.bin`, `partitions.bin`, `boot_app0.bin`, `firmware.bin`
-- `IMGs/manifest.json` für [ESP Web Tools](https://esphome.github.io/esp-web-tools/)
-- Deployment nach **GitHub Pages** (`webflasher/index.html` + `IMGs/`)
+| Datei | Verwendung |
+|-------|------------|
+| `factory.bin` | Komplettflash ab Adresse `0x0` (Bootloader + Partitionstabelle + App) |
+| `firmware.bin` | nur App – SoftAP-Web-Tab **Update** (OTA) |
 
-Einmalig im Repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Keine separate Datenpartition → zwei Images reichen. Artifact heißt `Inklinometer-<Version>` und enthält genau diese beiden `.bin` (+ kurze `README.txt`).
+
+- Webflasher (ESP Web Tools) nutzt `factory.bin`
+- Pages: https://dk8de.github.io/Inklinometer_IIS2ICLXTR/
 
 ## Build / Flash
 
