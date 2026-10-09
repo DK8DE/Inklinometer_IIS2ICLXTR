@@ -67,7 +67,17 @@ header{
 .dot.on{background:var(--ok);box-shadow:0 0 0 4px rgba(103,216,139,.15)}
 .dot.off{background:var(--err);box-shadow:0 0 0 4px rgba(224,122,114,.15)}
 main{max-width:920px;margin:0 auto;padding:1.25rem}
-nav{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+.nav-wrap{margin-bottom:1rem;position:relative}
+.nav-burger{
+  display:none;appearance:none;border:1px solid var(--line);background:var(--panel);
+  border-radius:.7rem;width:2.7rem;height:2.55rem;padding:.55rem .6rem;cursor:pointer;
+  flex-direction:column;justify-content:center;gap:.32rem
+}
+.nav-burger span{display:block;height:2px;border-radius:2px;background:var(--text);transition:transform .2s,opacity .2s}
+.nav-wrap.open .nav-burger span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.nav-wrap.open .nav-burger span:nth-child(2){opacity:0}
+.nav-wrap.open .nav-burger span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+nav{display:flex;gap:.5rem;flex-wrap:wrap}
 nav button{
   appearance:none;border:1px solid var(--line);background:var(--panel);
   color:var(--muted);padding:.55rem 1rem;border-radius:.7rem;cursor:pointer;font:inherit
@@ -75,6 +85,18 @@ nav button{
 nav button.active{
   color:var(--blue-deep);border-color:var(--blue);
   background:var(--blue-light);box-shadow:inset 0 -2px var(--blue)
+}
+@media(max-width:535px){
+  .nav-wrap{display:flex;flex-direction:column;align-items:stretch;z-index:20}
+  .nav-burger{display:inline-flex;align-self:flex-end;position:relative;z-index:21}
+  nav{
+    display:none;flex-direction:column;gap:.4rem;
+    position:absolute;top:calc(100% + .35rem);left:0;right:0;
+    padding:.55rem;border:1px solid var(--line);border-radius:.85rem;
+    background:var(--panel);box-shadow:var(--shadow);z-index:20
+  }
+  .nav-wrap.open nav{display:flex}
+  nav button{width:100%;text-align:left}
 }
 .card{
   background:var(--panel);
@@ -149,8 +171,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 .toast.show{display:block}
 .toast.ok{border-color:rgba(103,216,139,.55)}
 .toast.bad{border-color:rgba(224,122,114,.55)}
-.angle{font-size:84px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--white)}
+.elev-card{display:flex;flex-direction:column;align-items:center;text-align:center}
+.elev-card h2{align-self:stretch;text-align:left}
+.angle{font-size:84px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--white);text-align:center;margin:.35rem 0 .15rem}
 @media(max-width:640px){.angle{font-size:64px}}
+.elev-card .muted,.elev-card .tag{text-align:center}
 .tag{
   display:inline-flex;align-items:center;gap:.35rem;margin-top:.85rem;
   padding:.25rem .65rem;border-radius:.5rem;font-size:.8rem;font-weight:600;
@@ -178,16 +203,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
   </div>
 </header>
 <main>
-  <nav>
-    <button class="active" data-tab="status" data-i18n="tab_status">Status</button>
-    <button data-tab="config" data-i18n="tab_config">Configuration</button>
-    <button data-tab="calib" data-i18n="tab_calib">Calibration</button>
-    <button data-tab="update" data-i18n="tab_update">Update</button>
-    <button data-tab="reset" data-i18n="tab_reset">Reset</button>
-  </nav>
+  <div class="nav-wrap" id="navWrap">
+    <button type="button" class="nav-burger" id="navBurger" aria-label="Menu" aria-expanded="false" aria-controls="mainNav">
+      <span></span><span></span><span></span>
+    </button>
+    <nav id="mainNav">
+      <button class="active" data-tab="status" data-i18n="tab_status">Status</button>
+      <button data-tab="config" data-i18n="tab_config">Configuration</button>
+      <button data-tab="calib" data-i18n="tab_calib">Calibration</button>
+      <button data-tab="update" data-i18n="tab_update">Update</button>
+      <button data-tab="reset" data-i18n="tab_reset">Reset</button>
+    </nav>
+  </div>
 
   <section id="tab-status" class="grid two">
-    <div class="card">
+    <div class="card elev-card">
       <h2 data-i18n="h_elevation">Elevation</h2>
       <div class="angle mono" id="elevVal">—</div>
       <div class="muted" id="elevHint" data-i18n="elev_hint">Live from sensor</div>
@@ -198,7 +228,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
       <div class="grid">
         <div class="kv"><div class="k" data-i18n="k_uptime">Uptime</div><div class="v mono" id="uptime">—</div></div>
         <div class="kv"><div class="k" data-i18n="k_error">Error</div><div class="v mono" id="errFlag">—</div></div>
-        <div class="kv"><div class="k" data-i18n="k_settled">Settled</div><div class="v mono" id="settledFlag">—</div></div>
         <div class="kv"><div class="k">SoftAP</div><div class="v mono" id="apInfo">—</div></div>
         <div class="kv"><div class="k">UID</div><div class="v mono" id="uid">—</div></div>
         <div class="kv"><div class="k" data-i18n="k_fw">Firmware</div><div class="v mono" id="fwVer">—</div></div>
@@ -443,11 +472,7 @@ function applyLang(next){
     if(k) el.innerHTML = t(k);
   });
   setDebugUi($('debugSerial')?$('debugSerial').checked:false);
-  if($('settledFlag')){
-    const v=$('settledFlag').textContent;
-    if(v==='1') applySettled(true);
-    else if(v==='0') applySettled(false);
-  }
+  if(lastSettled!=null) applySettled(lastSettled);
   if(ws && ws.readyState===1) setConn('live');
 }
 async function setLang(next){
@@ -487,6 +512,13 @@ async function api(path, opts){
     clearTimeout(timer);
   }
 }
+function setNavOpen(open){
+  const wrap=$('navWrap');
+  const btn=$('navBurger');
+  if(!wrap||!btn) return;
+  wrap.classList.toggle('open', !!open);
+  btn.setAttribute('aria-expanded', open?'true':'false');
+}
 function showTab(name){
   document.querySelectorAll('nav button[data-tab]').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   ['status','config','calib','update','reset'].forEach(n=>{
@@ -497,8 +529,20 @@ function showTab(name){
     // display:grid auf .grid überschreibt sonst das native [hidden]
     el.style.display = on ? '' : 'none';
   });
+  setNavOpen(false);
 }
 document.querySelectorAll('nav button[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+if($('navBurger')){
+  $('navBurger').onclick=()=>setNavOpen(!$('navWrap').classList.contains('open'));
+}
+window.addEventListener('resize',()=>{
+  if(window.innerWidth>535) setNavOpen(false);
+});
+document.addEventListener('click',(ev)=>{
+  const wrap=$('navWrap');
+  if(!wrap||!wrap.classList.contains('open')) return;
+  if(!wrap.contains(ev.target)) setNavOpen(false);
+});
 
 function setConn(mode){
   const text=$('connBadge');
@@ -521,10 +565,6 @@ function setElevation(a){
   const d = (a.decimals!=null)? Number(a.decimals) : 2;
   const el = $('elevVal');
   if(el) el.textContent = Number(a.elevation).toFixed(d)+'\u00B0';
-  if(a.seq!=null){
-    const h = $('elevHint');
-    if(h) h.textContent = 'seq '+a.seq;
-  }
 }
 function setDebugUi(on){
   const b = $('debugSerial');
@@ -547,10 +587,10 @@ let statusBusy = false;
 let liveBusy = false;
 let ws = null;
 let wsRetry = null;
-let lastSeq = -1;
+let lastSettled = null;
 function applySettled(v){
   const settled = !!v;
-  if($('settledFlag')) $('settledFlag').textContent = settled ? '1' : '0';
+  lastSettled = settled;
   const b = $('settledBadge');
   if(b){
     b.textContent = settled ? t('badge_settled') : t('badge_moving');
@@ -559,12 +599,17 @@ function applySettled(v){
 }
 function applyLive(a){
   setElevation(a);
-  if(a.seq!=null) lastSeq = Number(a.seq);
   if(a.error!=null){
     $('errFlag').textContent = a.error ? '1' : '0';
   }
   if(a.settled!=null) applySettled(a.settled);
   if(a.heap!=null) $('heap').textContent = a.heap+' B';
+  if(a.uptime!=null && $('uptime')) $('uptime').textContent = fmtUptime(a.uptime);
+  if((a.ssid!=null || a.ip!=null) && $('apInfo')){
+    $('apInfo').textContent = (a.ssid||'')+' / '+ (a.ip||'192.168.4.1');
+  }
+  if(a.uid!=null && $('uid')) $('uid').textContent = a.uid||'—';
+  if(a.fw!=null && $('fwVer')) $('fwVer').textContent = a.fw||'—';
   setConn((ws && ws.readyState===1) ? 'live' : 'ok');
 }
 function connectWs(){
@@ -761,11 +806,20 @@ $('btnFactory').onclick = ()=>{
 applyLang('de');
 loadCfg().catch(()=>{});
 loadUpdateInfo().catch(()=>{});
-refreshStatus();
 connectWs();
 refreshLive();
+refreshStatus();
+// Nach Connect/Reload Status mehrfach nachziehen (SoftAP oft erst verzögert bereit)
+(async()=>{
+  for(let i=0;i<8;i++){
+    await new Promise(r=>setTimeout(r,250));
+    await refreshStatus();
+    await refreshLive();
+    if($('uid') && $('uid').textContent && $('uid').textContent!=='—') break;
+  }
+})();
 setInterval(refreshLive, 100);
-setInterval(refreshStatus, 10000);
+setInterval(refreshStatus, 5000);
 </script>
 </body>
 </html>

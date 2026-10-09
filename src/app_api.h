@@ -25,7 +25,6 @@ float currentElevationOut();
 /** Sensor lesen + Filter aktualisieren (mit Retry). */
 bool sampleElevation();
 void resetElevationFilter();
-uint32_t liveSequence();
 /** INT2 sleep/stationary: true = Stillstand (eingelaufen). */
 bool isSettled();
 void deviceUid(char *out, size_t outLen);  // z.B. "C3A1B2"

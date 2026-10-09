@@ -22,6 +22,11 @@ alwaysApply: true
 - Lokal: `./build.sh` (sync + compile + upload)
 - GitHub: Artifacts immer; Release nur bei neuer Version (Tag `vX.Y.Z`)
 
+## SoftAP
+- Ein: Taster GPIO0 (Kurzdruck)
+- Aus: erneut Taster, oder automatisch ca. 2,5 s nach Trennung des letzten WLAN-Clients
+- LED SoftAP: Doppelblink; normal: 500 ms; Fehler: dauerhaft an
+
 ## Build / Flash
 - Projektroot: PlatformIO (`platformio.ini`)
 - Environment: `esp32-c3`

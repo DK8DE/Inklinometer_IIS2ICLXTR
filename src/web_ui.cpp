@@ -15,6 +15,9 @@ static WebServer *g_server = nullptr;
 static WebSocketsServer g_ws(81);
 static bool g_webActive = false;
 static bool g_wsStarted = false;
+static bool g_apHadClient = false;
+static uint32_t g_apEmptySinceMs = 0;
+static constexpr uint32_t AP_IDLE_SHUTDOWN_MS = 2500;
 
 static const char *WEB_USER = "admin";
 static const char *WEB_PASS = "Rotorconfig";
@@ -73,26 +76,32 @@ static void handleStatus() {
 }
 
 static void fillLiveJson(char *buf, size_t buflen) {
-  // Frisches Sample direkt im Request – unabhängig vom Loop-Timing
+  // Frisches Sample + Systemfelder (damit Status nach Reload sofort voll ist)
   sampleElevation();
+  char uid[16];
+  deviceUid(uid, sizeof(uid));
+  String ssid = WiFi.softAPSSID();
+  String ip = WiFi.softAPIP().toString();
   snprintf(buf, buflen,
            "{\"elevation\":%.4f,\"decimals\":%d,\"error\":%s,\"ms\":%lu,"
-           "\"heap\":%u,\"seq\":%lu,\"settled\":%s}",
+           "\"heap\":%u,\"settled\":%s,\"uptime\":%lu,"
+           "\"ssid\":\"%s\",\"ip\":\"%s\",\"uid\":\"%s\",\"fw\":\"%s\"}",
            (double)currentElevationOut(), elevDecimals,
            g_errorActive ? "true" : "false", (unsigned long)millis(),
-           (unsigned)ESP.getFreeHeap(), (unsigned long)liveSequence(),
-           isSettled() ? "true" : "false");
+           (unsigned)ESP.getFreeHeap(),
+           isSettled() ? "true" : "false", (unsigned long)(millis() / 1000UL),
+           ssid.c_str(), ip.c_str(), uid, FW_VERSION);
 }
 
 static void handleAngle() {
-  char buf[192];
+  char buf[384];
   fillLiveJson(buf, sizeof(buf));
   sendJson(200, buf);
 }
 
-/** Leichtgewichtiger Live-Poll (Winkel + Badge), ein Request statt zweier. */
+/** Live-Poll: Winkel + Systeminfos für Statuskarte. */
 static void handleLive() {
-  char buf[192];
+  char buf[384];
   fillLiveJson(buf, sizeof(buf));
   sendJson(200, buf);
 }
@@ -473,7 +482,7 @@ static void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
   (void)payload;
   (void)length;
   if (type == WStype_CONNECTED) {
-    char buf[192];
+    char buf[384];
     fillLiveJson(buf, sizeof(buf));
     g_ws.sendTXT(num, buf);
   }
@@ -536,6 +545,8 @@ void webUiBegin(const char *ssid, const char *password) {
   g_ws.onEvent(onWsEvent);
   g_wsStarted = true;
 
+  g_apHadClient = false;
+  g_apEmptySinceMs = 0;
   g_webActive = true;
 }
 
@@ -552,6 +563,8 @@ void webUiEnd() {
   }
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_OFF);
+  g_apHadClient = false;
+  g_apEmptySinceMs = 0;
   g_webActive = false;
 }
 
@@ -567,14 +580,26 @@ void webUiLoop() {
   if (g_wsStarted) {
     g_ws.loop();
   }
+
+  // Nach Trennung aller SoftAP-Clients AP wieder aus (bis nächster Taster)
+  const int stations = WiFi.softAPgetStationNum();
+  if (stations > 0) {
+    g_apHadClient = true;
+    g_apEmptySinceMs = 0;
+  } else if (g_apHadClient) {
+    if (g_apEmptySinceMs == 0) {
+      g_apEmptySinceMs = millis();
+    } else if ((uint32_t)(millis() - g_apEmptySinceMs) >= AP_IDLE_SHUTDOWN_MS) {
+      webUiEnd();
+    }
+  }
 }
 
 void webUiPushLive() {
   if (!g_webActive || !g_wsStarted) {
     return;
   }
-  sampleElevation();
-  char buf[192];
+  char buf[384];
   fillLiveJson(buf, sizeof(buf));
   // Explizit an jeden Client (zuverlässiger als broadcast auf SoftAP)
   for (uint8_t i = 0; i < WEBSOCKETS_SERVER_CLIENT_MAX; i++) {

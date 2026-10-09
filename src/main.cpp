@@ -102,7 +102,6 @@ bool g_errorActive = false;      // true → LBLED dauerhaft an
 
 static float g_elevFiltered = NAN;
 static bool g_appliedFs1g = false;
-static uint32_t g_liveSeq = 0;
 static bool g_settled = true;    // INT2 sleep/stationary status
 static bool g_fifoOk = false;    // FIFO+INT1 configured
 static Preferences g_prefs;
@@ -462,16 +461,11 @@ bool sampleElevation() {
   } else {
     g_elevFiltered = wrap360(g_elevFiltered + alpha * angleDiffDeg(elev, g_elevFiltered));
   }
-  g_liveSeq++;
   return true;
 }
 
 void resetElevationFilter() {
   g_elevFiltered = NAN;
-}
-
-uint32_t liveSequence() {
-  return g_liveSeq;
 }
 
 static bool g_calib1Ok = false;
