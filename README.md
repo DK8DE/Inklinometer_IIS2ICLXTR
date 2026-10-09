@@ -1,8 +1,8 @@
-# Inklinometer DK8DE IIS2ICLX – ESP32-C3
+﻿# Inklinometer DK8DE IIS2ICLX â€“ ESP32-C3
 
-**Firmware:** <!--FW_VERSION-->1.3.0<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
+**Firmware:** <!--FW_VERSION-->1.3.1<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
 
-Hochauflösende Antennen-Elevation über ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. Zusätzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
+HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. ZusÃ¤tzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
 
 ## Hardware
 
@@ -19,23 +19,23 @@ Hochauflösende Antennen-Elevation über ST IIS2ICLX, Abfrage und Konfiguration 
 | USB | nativer USB-CDC (optionaler Debug) |
 
 - I2C: 400 kHz / Sensor je nach SA0 (Firmware: `0x6B`)
-- RS485-Wandler mit **automatischer** DE/RE-Umschaltung (kein DE-Pin nötig)
+- RS485-Wandler mit **automatischer** DE/RE-Umschaltung (kein DE-Pin nÃ¶tig)
 - Baudrate Protokoll: **115200 8N1**
 
 ### LBLED (GPIO10)
 
 | Zustand | LED |
 |---------|-----|
-| Loop läuft normal | **500 ms an / 500 ms aus** |
-| SoftAP / Config-Mode aktiv | **2× kurz blinken**, dann **250 ms Pause** (wiederholt) |
+| Loop lÃ¤uft normal | **500 ms an / 500 ms aus** |
+| SoftAP / Config-Mode aktiv | **2Ã— kurz blinken**, dann **250 ms Pause** (wiederholt) |
 | Fehler (z. B. Sensor-Init / Full-Scale schreiben) | **dauerhaft an** |
-| Werkreset beim Boot bestätigt | **3× schnell blinken**, dann Neustart |
+| Werkreset beim Boot bestÃ¤tigt | **3Ã— schnell blinken**, dann Neustart |
 
 ### Taster (GPIO0)
 
 | Zeitpunkt | Verhalten |
 |-----------|-----------|
-| Beim Boot gedrückt (LOW) | NVS-Namespace `incl` löschen, Compile-Defaults speichern, Neustart |
+| Beim Boot gedrÃ¼ckt (LOW) | NVS-Namespace `incl` lÃ¶schen, Compile-Defaults speichern, Neustart |
 | Zur Laufzeit Short-Press | SoftAP + Web-UI **ein/aus** (Toggle, bleibt bis Neustart oder zweitem Druck) |
 
 ## SoftAP / Web-UI
@@ -49,21 +49,21 @@ Hochauflösende Antennen-Elevation über ST IIS2ICLX, Abfrage und Konfiguration 
 
 Tabs: **Status** (Live-Winkel), **Konfiguration** (NVS-Felder), **Update** (OTA `firmware.bin`), **Reset** (Neustart / Werkseinstellung).
 
-Das RS485-Protokoll läuft parallel weiter, solange SoftAP aktiv ist.
+Das RS485-Protokoll lÃ¤uft parallel weiter, solange SoftAP aktiv ist.
 
 ## Serielle Schnittstellen
 
 | Port | Verwendung |
 |------|------------|
-| UART0 (GPIO21/20) | RS485-Protokoll (`#GET…$` / `#SET…$`) |
-| USB-CDC | Debug-Ausgabe, wenn „Debug über USB“ ein (`#SETDEBUG,1$` oder Web-Schalter) |
+| UART0 (GPIO21/20) | RS485-Protokoll (`#GETâ€¦$` / `#SETâ€¦$`) |
+| USB-CDC | Debug-Ausgabe, wenn â€žDebug Ã¼ber USBâ€œ ein (`#SETDEBUG,1$` oder Web-Schalter) |
 
 ## Protokoll
 
 ### Frame-Format
 
 - Jeder Befehl beginnt mit `#` und endet mit `$`
-- **Keine** Zeilenumbrüche (`\r`/`\n`) im Frame
+- **Keine** ZeilenumbrÃ¼che (`\r`/`\n`) im Frame
 - GET: `#GET<NAME>$`
 - SET: `#SET<NAME>,<Wert>$`
 - Erfolg: `#ACK_<CMD>,<Wert>$`
@@ -91,45 +91,45 @@ Das RS485-Protokoll läuft parallel weiter, solange SoftAP aktiv ist.
 #ACK_SETDEBUG,1$
 ```
 
-Ungültiger Wert:
+UngÃ¼ltiger Wert:
 
 ```
 #SETFILTER,2$
 #NACK_SETFILTER,ERR$
 ```
 
-### Befehlsübersicht
+### BefehlsÃ¼bersicht
 
 | Bedeutung | GET | SET | Wertebereich |
 |-----------|-----|-----|--------------|
-| Elevation (gefiltert) | `GETDG` | — | Winkel in °, Nachkommastellen laut `ELEVDEC` |
-| Stillstand (INT2 Sleep/Stationary) | `GETSETTLED` | — | `0` = bewegt, `1` = ruhig / eingelaufen |
+| Elevation (gefiltert) | `GETDG` | â€” | Winkel in Â°, Nachkommastellen laut `ELEVDEC` |
+| Stillstand (INT2 Sleep/Stationary) | `GETSETTLED` | â€” | `0` = bewegt, `1` = ruhig / eingelaufen |
 | Achsen tauschen (swapXY) | `GETSWAPXY` | `SETSWAPXY` | `0` / `1` |
 | REF invertieren | `GETINVREF` | `SETINVREF` | `0` / `1` |
 | SENSE invertieren | `GETINVSENS` | `SETINVSENS` | `0` / `1` |
-| Drehrichtung umkehren | `GETINVROT` | `SETINVROT` | `0` / `1` (1 = gegen Uhrzeigersinn vergrößert) |
-| Montage-Drehung (0°-Seite) | `GETMOUNTROT` | `SETMOUNTROT` | `0` / `90` / `180` / `270` |
-| Winkel auf 0…180° begrenzen | `GETLIMIT180` | `SETLIMIT180` | `0` / `1` |
-| Kalibrier-Offset | `GETCALIB` | `SETCALIB` | −180.0 … +180.0 |
-| Full-Scale ±1 g | `GETFS1G` | `SETFS1G` | `0` = ±2 g, `1` = ±1 g |
+| Drehrichtung umkehren | `GETINVROT` | `SETINVROT` | `0` / `1` (1 = gegen Uhrzeigersinn vergrÃ¶ÃŸert) |
+| Montage-Drehung (0Â°-Seite) | `GETMOUNTROT` | `SETMOUNTROT` | `0` / `90` / `180` / `270` |
+| Winkel auf 0â€¦180Â° begrenzen | `GETLIMIT180` | `SETLIMIT180` | `0` / `1` |
+| Kalibrier-Offset | `GETCALIB` | `SETCALIB` | âˆ’180.0 â€¦ +180.0 |
+| Full-Scale Â±1 g | `GETFS1G` | `SETFS1G` | `0` = Â±2 g, `1` = Â±1 g |
 | Anzeige-Nachkommastellen | `GETELEVDEC` | `SETELEVDEC` | `0` / `1` / `2` |
-| EMA-Filter alpha | `GETFILTER` | `SETFILTER` | 0.01 … 1.0 (größer = schneller; bei Settled ×0,25) |
+| EMA-Filter alpha | `GETFILTER` | `SETFILTER` | 0.01 â€¦ 1.0 (grÃ¶ÃŸer = schneller; bei Settled Ã—0,25) |
 | USB-Debug | `GETDEBUG` | `SETDEBUG` | `0` / `1` |
 
 ### Rauschfilter (INT1 / INT2)
 
-- **INT1 (GPIO6):** FIFO-Watermark (8 Samples @ 104 Hz) → Mittelwert der neuesten `ax`/`ay`, dann `atan2`
-- **Sensor-LPF2:** Bandbreite ODR/20 (~5 Hz) – Rauschen runter, ohne Sekunden-Nachlauf
-- **INT2 (GPIO7):** Sleep/Stationary-Status (Pegel) → `GETSETTLED` / Web-Badge; Settled → stärkeres EMA, Moving → schnelleres EMA
+- **INT1 (GPIO6):** FIFO-Watermark (8 Samples @ 104 Hz) â†’ Mittelwert der neuesten `ax`/`ay`, dann `atan2`
+- **Sensor-LPF2:** Bandbreite ODR/20 (~5 Hz) â€“ Rauschen runter, ohne Sekunden-Nachlauf
+- **INT2 (GPIO7):** Sleep/Stationary-Status (Pegel) â†’ `GETSETTLED` / Web-Badge; Settled â†’ stÃ¤rkeres EMA, Moving â†’ schnelleres EMA
 - Kein Pull-up an INT1/INT2 (Datenblatt)
 
 ### Soft-Limit (`LIMIT180`)
 
 Wenn aktiv (`1`):
 
-- Rohwinkel 0…180 → unverändert
-- >180 … ≤270 → Ausgabe **180**
-- >270 … <360 → Ausgabe **0**
+- Rohwinkel 0â€¦180 â†’ unverÃ¤ndert
+- >180 â€¦ â‰¤270 â†’ Ausgabe **180**
+- >270 â€¦ <360 â†’ Ausgabe **0**
 
 ### NVS
 
@@ -137,11 +137,11 @@ Jeder erfolgreiche **SET**-Befehl (und Web-Config-Speichern) speichert die Konfi
 
 ### 2-Punkt-Ebenkalibrierung (Web)
 
-1. Sensor auf ebene Fläche → **1. Messung**
-2. Auf der Stelle horizontal ca. **180°** drehen → **2. Messung**
-3. Beide Rohwinkel sind meist **nahe beieinander** (~90°) → Mittelwert → `offset = 90° − Mittelwert` → **Übernehmen**
+1. Sensor auf ebene FlÃ¤che â†’ **1. Messung**
+2. Auf der Stelle horizontal ca. **180Â°** drehen â†’ **2. Messung**
+3. Beide Rohwinkel sind meist **nahe beieinander** (~90Â°) â†’ Mittelwert â†’ `offset = 90Â° âˆ’ Mittelwert` â†’ **Ãœbernehmen**
 
-Die 180°-Drehung mittelt kleine Asymmetrien der Auflage. Ein Abstand von ~180° wäre nur bei einem Flip in der Messebene typisch (andere Geometrie).
+Die 180Â°-Drehung mittelt kleine Asymmetrien der Auflage. Ein Abstand von ~180Â° wÃ¤re nur bei einem Flip in der Messebene typisch (andere Geometrie).
 
 ## OTA
 
@@ -151,9 +151,9 @@ Die 180°-Drehung mittelt kleine Asymmetrien der Auflage. Ein Abstand von ~180°
 
 ## Montage (Elevation)
 
-Sensor **senkrecht** in der Elevationsebene montieren (beide Achsen X/Y in der Kippebene). Scharnier senkrecht zur Sensorfläche. Dann ist `atan2` über 0…360° eindeutig (auch nach Power-Cycle).
+Sensor **senkrecht** in der Elevationsebene montieren (beide Achsen X/Y in der Kippebene). Scharnier senkrecht zur SensorflÃ¤che. Dann ist `atan2` Ã¼ber 0â€¦360Â° eindeutig (auch nach Power-Cycle).
 
-**Hinweis:** Full-Scale ±0.5 g ist für diese Montage ungeeignet (Sättigung bei ca. 45°/135°). Nutze ±1 g oder ±2 g.
+**Hinweis:** Full-Scale Â±0.5 g ist fÃ¼r diese Montage ungeeignet (SÃ¤ttigung bei ca. 45Â°/135Â°). Nutze Â±1 g oder Â±2 g.
 
 ## Webflasher (GitHub Actions)
 
@@ -162,20 +162,20 @@ Bei Push auf `main` baut die Action `.github/workflows/build-webflasher.yml`:
 | Datei | Verwendung |
 |-------|------------|
 | `factory.bin` | Komplettflash ab Adresse `0x0` (Bootloader + Partitionstabelle + App) |
-| `firmware.bin` | nur App – SoftAP-Web-Tab **Update** (OTA) |
+| `firmware.bin` | nur App â€“ SoftAP-Web-Tab **Update** (OTA) |
 
-Keine separate Datenpartition → zwei Images reichen. Artifact heißt `Inklinometer-<Version>` und enthält genau diese beiden `.bin` (+ kurze `README.txt`).
+Keine separate Datenpartition â†’ zwei Images reichen. Artifact heiÃŸt `Inklinometer-<Version>` und enthÃ¤lt genau diese beiden `.bin` (+ kurze `README.txt`).
 
 - Webflasher (ESP Web Tools) nutzt `factory.bin`
 - Pages: https://dk8de.github.io/Inklinometer_IIS2ICLXTR/
 
 ## Version & Build
 
-Version nur in [`src/version.h`](src/version.h) ändern (`FW_VERSION_STR` / Major/Minor/Patch).
+Version nur in [`src/version.h`](src/version.h) Ã¤ndern (`FW_VERSION_STR` / Major/Minor/Patch).
 
 ```bash
 # Git Bash / Linux / macOS
-./build.sh                 # sync README → compile → Upload auf MCU
+./build.sh                 # sync README â†’ compile â†’ Upload auf MCU
 ./build.sh --no-upload
 ./build.sh --sync-only
 UPLOAD_PORT=COM34 ./build.sh
@@ -202,6 +202,6 @@ Nach Partitionstabellen-Wechsel einmalig:
 pio run -t erase -t upload
 ```
 
-**ESP32-C3 USB (OTG):** Upload nutzt `board_upload.before_reset = usb_reset` (kein PROG/RESET nötig), sofern der Chip über die native USB-Serial/JTAG-Schnittstelle hängt und die Firmware noch antwortet. Monitor während Upload schließen (`monitor_dtr/rts = 0` verhindert Reset-Loops im Monitor). Bei Boot-Loop oder fehlendem USB-JTAG weiterhin manuell: BOOT halten → Reset → BOOT loslassen.
+**ESP32-C3 USB (OTG):** Upload nutzt `board_upload.before_reset = usb_reset` (kein PROG/RESET nÃ¶tig), sofern der Chip Ã¼ber die native USB-Serial/JTAG-Schnittstelle hÃ¤ngt und die Firmware noch antwortet. Monitor wÃ¤hrend Upload schlieÃŸen (`monitor_dtr/rts = 0` verhindert Reset-Loops im Monitor). Bei Boot-Loop oder fehlendem USB-JTAG weiterhin manuell: BOOT halten â†’ Reset â†’ BOOT loslassen.
 
-USB-Monitor zeigt Elevation nur bei `#SETDEBUG,1$`. Protokoll-Tests über RS485 an GPIO21/20.
+USB-Monitor zeigt Elevation nur bei `#SETDEBUG,1$`. Protokoll-Tests Ã¼ber RS485 an GPIO21/20.
