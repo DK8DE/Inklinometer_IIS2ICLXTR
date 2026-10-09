@@ -23,7 +23,7 @@
 static constexpr int PIN_SDA = 4;
 static constexpr int PIN_SCL = 5;
 static constexpr int PIN_INT1 = 6;  // IIS2ICLX INT1 → FIFO watermark
-static constexpr int PIN_INT2 = 7;  // IIS2ICLX INT2 → sleep/stationary status
+static constexpr int PIN_INT2 = 7;  // IIS2ICLX INT2 → Stoß/Wake-up (Mechanik)
 static constexpr int PIN_RS485_RX = 20;
 static constexpr int PIN_RS485_TX = 21;
 static constexpr int PIN_LBLED = 10;  // Lebensblink-LED
@@ -64,7 +64,7 @@ static constexpr uint8_t CTRL1_XL_FS_2G = 0x4E;  // FS=±2 g
 static constexpr uint8_t CTRL1_XL_FS_1G = 0x4A;  // FS=±1 g
 // LPF2 HPCF=010 → ODR/20 (~5 Hz @ 104 Hz). ODR/800 war zu träge (Sekunden-Nachlauf).
 static constexpr uint8_t CTRL8_XL_LPF_ODR_DIV20 = 0x40;
-static constexpr uint8_t WAKE_UP_THS_VAL = 0x04;       // ~FS/2^6 * 4
+static constexpr uint8_t DEF_SHOCK_THS = 25;           // WAKE_UP_THS 1…63 (~FS/64 pro Stufe)
 static constexpr uint8_t WAKE_UP_DUR_VAL = 0x20;       // wake_dur=1 (2 ODR), sleep_dur=0 (16 ODR)
 static constexpr float SENS_2G_MG_LSB = 0.061f;
 static constexpr float SENS_1G_MG_LSB = 0.031f;
@@ -96,13 +96,14 @@ int mountRotationDeg = DEF_MOUNT_ROT;
 int elevDecimals = DEF_ELEV_DEC;
 bool fullScale1g = DEF_FS_1G;
 float filterAlpha = DEF_FILTER;  // 0.01…1.0; größer = schneller
+int shockThs = DEF_SHOCK_THS;    // INT2 Wake-up-Schwelle 1…63
 bool debugSerial = DEF_DEBUG;    // USB-CDC Debug
 char uiLang[4] = "de";           // Web-UI: "de" / "en"
 bool g_errorActive = false;      // true → LBLED dauerhaft an
 
 static float g_elevFiltered = NAN;
 static bool g_appliedFs1g = false;
-static bool g_settled = true;    // INT2 sleep/stationary status
+static bool g_settled = true;    // INT2: true = stabil (kein Stoß)
 static bool g_fifoOk = false;    // FIFO+INT1 configured
 static Preferences g_prefs;
 static HardwareSerial RS485(0);
@@ -191,8 +192,8 @@ static bool configureFifoAndInterrupts() {
     return false;
   }
 
-  // Wake-up / stationary → INT2 as sleep status level
-  if (!writeReg(REG_WAKE_UP_THS, WAKE_UP_THS_VAL)) {
+  // Wake-up → INT2 Sleep-Status-Pegel (Stoß/Mechanik, nicht langsame Winkelbewegung)
+  if (!applyShockThreshold()) {
     return false;
   }
   if (!writeReg(REG_WAKE_UP_DUR, WAKE_UP_DUR_VAL)) {
@@ -208,6 +209,26 @@ static bool configureFifoAndInterrupts() {
     return false;
   }
   if (!writeReg(REG_MD2_CFG, 0x80)) {  // INT2_SLEEP_CHANGE
+    return false;
+  }
+  return true;
+}
+
+static int clampShockThs(int v) {
+  if (v < 1) {
+    return 1;
+  }
+  if (v > 63) {
+    return 63;
+  }
+  return v;
+}
+
+bool applyShockThreshold() {
+  shockThs = clampShockThs(shockThs);
+  // WK_THS[5:0]; 1 LSB ≈ FS/64
+  if (!writeReg(REG_WAKE_UP_THS, (uint8_t)(shockThs & 0x3F))) {
+    g_errorActive = true;
     return false;
   }
   return true;
@@ -254,7 +275,7 @@ static bool initSensor() {
 }
 
 static void updateSettledFromInt2() {
-  // SLEEP_STATUS_ON_INT: HIGH = sleep/stationary (settled)
+  // SLEEP_STATUS_ON_INT: HIGH = Sleep/stabil (kein Stoß über Schwelle)
   g_settled = digitalRead(PIN_INT2) == HIGH;
 }
 
@@ -604,6 +625,7 @@ void saveConfig() {
   g_prefs.putInt("elevDec", elevDecimals);
   g_prefs.putBool("fs1g", fullScale1g);
   g_prefs.putFloat("filt", filterAlpha);
+  g_prefs.putInt("shock", shockThs);
   g_prefs.putBool("debug", debugSerial);
   g_prefs.putString("uiLang", uiLang);
   g_prefs.end();
@@ -647,6 +669,7 @@ void loadConfig() {
     elevDecimals = g_prefs.getInt("elevDec", elevDecimals);
     fullScale1g = g_prefs.getBool("fs1g", fullScale1g);
     filterAlpha = g_prefs.getFloat("filt", filterAlpha);
+    shockThs = g_prefs.getInt("shock", shockThs);
     debugSerial = g_prefs.getBool("debug", debugSerial);
     {
       String lang = g_prefs.getString("uiLang", DEF_UI_LANG);
@@ -672,6 +695,7 @@ void loadConfig() {
   if (filterAlpha > 1.0f) {
     filterAlpha = 1.0f;
   }
+  shockThs = clampShockThs(shockThs);
   calibOffsetDeg = clampOffset180(calibOffsetDeg);
   mountRotationDeg = normalizeMountRotation(mountRotationDeg);
   normalizeUiLang();
@@ -693,10 +717,12 @@ void factoryResetConfig() {
   elevDecimals = DEF_ELEV_DEC;
   fullScale1g = DEF_FS_1G;
   filterAlpha = DEF_FILTER;
+  shockThs = DEF_SHOCK_THS;
   debugSerial = DEF_DEBUG;
   strncpy(uiLang, DEF_UI_LANG, sizeof(uiLang) - 1);
   uiLang[sizeof(uiLang) - 1] = '\0';
   saveConfig();
+  applyShockThreshold();
 }
 
 
@@ -822,9 +848,14 @@ static void handleFrame(char *frame) {
     return;
   }
 
-  // --- GETSETTLED (INT2 sleep/stationary) ---
+  // --- GETSETTLED (INT2: 1=stabil, 0=Ruck/Stoß) ---
   if (isGet && strcmp(name, "SETTLED") == 0) {
     protoAckInt("GETSETTLED", isSettled() ? 1 : 0);
+    return;
+  }
+  // --- GETSHOCK (INT2: 1=Ruck/Stoß, 0=stabil) ---
+  if (isGet && strcmp(name, "SHOCK") == 0) {
+    protoAckInt("GETSHOCK", isSettled() ? 0 : 1);
     return;
   }
 
@@ -1003,6 +1034,31 @@ static void handleFrame(char *frame) {
     filterAlpha = v;
     saveConfig();
     protoAckFloat("SETFILTER", filterAlpha, 2);
+    return;
+  }
+
+  if (strcmp(name, "SHOCKTHS") == 0) {
+    if (isGet) {
+      protoAckInt("GETSHOCKTHS", shockThs);
+      return;
+    }
+    if (!value) {
+      protoNack("SETSHOCKTHS");
+      return;
+    }
+    char *end = nullptr;
+    long v = strtol(value, &end, 10);
+    if (end == value || *end != '\0' || v < 1 || v > 63) {
+      protoNack("SETSHOCKTHS");
+      return;
+    }
+    shockThs = (int)v;
+    if (!applyShockThreshold()) {
+      protoNack("SETSHOCKTHS");
+      return;
+    }
+    saveConfig();
+    protoAckInt("SETSHOCKTHS", shockThs);
     return;
   }
 

@@ -261,7 +261,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
           <label for="filter" data-i18n="lbl_filter">Filter alpha (0.01…1)</label>
           <input type="number" id="filter" step="0.01" min="0.01" max="1">
         </div>
+        <div class="field">
+          <label for="shockThs" data-i18n="lbl_shock">Shock threshold (1…63)</label>
+          <input type="number" id="shockThs" step="1" min="1" max="63">
+        </div>
       </div>
+      <div class="muted" style="margin:.35rem 0 .75rem" data-i18n="hint_shock">INT2 detects jolts/impacts, not slow angle changes.</div>
       <div class="formgrid checks">
         <div class="field check"><input type="checkbox" id="invertRotationDir"><label for="invertRotationDir" data-i18n="lbl_invrot">Invert rotation direction</label></div>
         <div class="field check"><input type="checkbox" id="limit180"><label for="limit180" data-i18n="lbl_limit180">Limit angle to 0–180°</label></div>
@@ -353,11 +358,11 @@ de:{
   subtitle:'SoftAP · Konfiguration · OTA',
   badge_loading:'laden…', badge_live:'live', badge_ok:'OK', badge_http:'HTTP',
   badge_offline:'offline', badge_reconnect:'reconnect…',
-  badge_settled_unk:'…', badge_settled:'ruhig', badge_moving:'bewegt',
+  badge_settled_unk:'…', badge_settled:'stabil', badge_moving:'Ruck',
   tab_status:'Status', tab_config:'Konfiguration', tab_calib:'Kalibrierung',
   tab_update:'Update', tab_reset:'Reset',
   h_elevation:'Elevation', elev_hint:'Live aus Sensor (FIFO-Mittelung)',
-  k_uptime:'Uptime', k_error:'Fehler', k_settled:'Settled',
+  k_uptime:'Uptime', k_error:'Fehler', k_settled:'Mechanik',
   h_system:'System', k_fw:'Firmware', k_heap:'Free Heap',
   lbl_debug_usb:'Debug über USB',
   dbg_on:'Ein: Elevation ca. 10×/s auf USB-CDC (115200 Baud).',
@@ -366,9 +371,11 @@ de:{
   h_config:'Konfiguration (NVS)',
   lbl_mount:'Montage-Drehung (0°-Seite)', lbl_invrot:'Drehrichtung umkehren',
   lbl_limit180:'Winkel auf 0–180° begrenzen', lbl_fs1g:'Full-Scale ±1 g (sonst ±2 g)',
-  lbl_calib:'Kalibrier-Offset (°)', lbl_filter:'Filter alpha (0.01…1)', lbl_decimals:'Nachkommastellen',
+  lbl_calib:'Kalibrier-Offset (°)', lbl_filter:'Filter alpha (0.01…1)',
+  lbl_shock:'Stoßschwelle (1…63, kleiner = empfindlicher)', lbl_decimals:'Nachkommastellen',
   btn_save:'Speichern', btn_reload:'Neu laden',
-  hint_config_save:'Änderungen werden im NVS gespeichert. Full-Scale wird sofort am Sensor gesetzt.',
+  hint_config_save:'Änderungen werden im NVS gespeichert. Full-Scale und Stoßschwelle werden sofort am Sensor gesetzt.',
+  hint_shock:'INT2: Rucke/Schläge (keine langsamen Winkeländerungen). 1 LSB ≈ FS/64.',
   h_calib:'2-Punkt-Ebenkalibrierung',
   p_calib:'Eben ablegen → <b>Messung 1</b>. Horizontal ca. 180° drehen → <b>Messung 2</b>. Beide Werte typisch nahe (~90°). Offset = 90° − Mittelwert.',
   k_m1:'Messung 1', k_m2:'Messung 2', k_mid:'Mittelpunkt', k_sep:'Abstand',
@@ -407,11 +414,11 @@ en:{
   subtitle:'SoftAP · Configuration · OTA',
   badge_loading:'loading…', badge_live:'live', badge_ok:'OK', badge_http:'HTTP',
   badge_offline:'offline', badge_reconnect:'reconnect…',
-  badge_settled_unk:'…', badge_settled:'settled', badge_moving:'moving',
+  badge_settled_unk:'…', badge_settled:'stable', badge_moving:'jolt',
   tab_status:'Status', tab_config:'Configuration', tab_calib:'Calibration',
   tab_update:'Update', tab_reset:'Reset',
   h_elevation:'Elevation', elev_hint:'Live from sensor (FIFO average)',
-  k_uptime:'Uptime', k_error:'Error', k_settled:'Settled',
+  k_uptime:'Uptime', k_error:'Error', k_settled:'Mechanics',
   h_system:'System', k_fw:'Firmware', k_heap:'Free Heap',
   lbl_debug_usb:'Debug via USB',
   dbg_on:'On: elevation ~10×/s on USB-CDC (115200 baud).',
@@ -420,9 +427,11 @@ en:{
   h_config:'Configuration (NVS)',
   lbl_mount:'Mount rotation (0° side)', lbl_invrot:'Invert rotation direction',
   lbl_limit180:'Limit angle to 0–180°', lbl_fs1g:'Full-scale ±1 g (else ±2 g)',
-  lbl_calib:'Calibration offset (°)', lbl_filter:'Filter alpha (0.01…1)', lbl_decimals:'Decimal places',
+  lbl_calib:'Calibration offset (°)', lbl_filter:'Filter alpha (0.01…1)',
+  lbl_shock:'Shock threshold (1…63, lower = more sensitive)', lbl_decimals:'Decimal places',
   btn_save:'Save', btn_reload:'Reload',
-  hint_config_save:'Changes are stored in NVS. Full-scale is applied to the sensor immediately.',
+  hint_config_save:'Changes are stored in NVS. Full-scale and shock threshold are applied to the sensor immediately.',
+  hint_shock:'INT2: jolts/impacts (not slow angle changes). 1 LSB ≈ FS/64.',
   h_calib:'2-point level calibration',
   p_calib:'Place level → <b>Measurement 1</b>. Rotate ~180° in place → <b>Measurement 2</b>. Both typically near (~90°). Offset = 90° − mean.',
   k_m1:'Measurement 1', k_m2:'Measurement 2', k_mid:'Midpoint', k_sep:'Separation',
@@ -665,6 +674,7 @@ function fillCfg(c){
   setDebugUi(!!c.debug);
   $('calib').value = Number(c.calib).toFixed(2);
   $('filter').value = Number(c.filter).toFixed(2);
+  if($('shockThs')) $('shockThs').value = String(c.shockThs!=null?c.shockThs:25);
   $('decimals').value = String(c.decimals);
   if($('calCur')) $('calCur').textContent = Number(c.calib).toFixed(2)+'\u00B0';
   if(c.lang) applyLang(c.lang);
@@ -748,6 +758,7 @@ $('btnSaveCfg').onclick = async ()=>{
     debug: $('debugSerial').checked,
     calib: parseFloat($('calib').value),
     filter: parseFloat($('filter').value),
+    shockThs: parseInt($('shockThs').value,10),
     decimals: parseInt($('decimals').value,10),
     lang: lang
   };

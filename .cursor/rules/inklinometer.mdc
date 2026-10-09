@@ -13,7 +13,7 @@ alwaysApply: true
 - SDA: GPIO4
 - SCL: GPIO5
 - INT1: GPIO6 (FIFO Watermark → Burst-Mittelung)
-- INT2: GPIO7 (Sleep/Stationary → Settled)
+- INT2: GPIO7 (Wake-up/Stoß → stabil/Ruck; Schwelle `shockThs` 1…63)
 - I2C-Takt: 400 kHz
 - INT1/INT2: kein Pull-up
 

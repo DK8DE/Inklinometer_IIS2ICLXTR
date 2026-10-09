@@ -119,6 +119,8 @@ jobs:
 
           factory.bin  - Komplettflash ab Adresse 0 (esptool / Webflasher)
           firmware.bin - nur App fuer SoftAP-OTA (Web-Tab Update)
+          *-Anleitung_DE.pdf - Bedienungsanleitung (Deutsch)
+          *-Manual_EN.pdf    - User Manual (English)
 
           Beispiel Komplettflash:
             esptool.py --chip esp32c3 write_flash 0x0 factory.bin
@@ -130,6 +132,27 @@ jobs:
           # Versionierte Kopien fuer Release-Assets
           cp "$OUT_DIR/factory.bin" "$OUT_DIR/Inklinometer-${VERSION}-factory.bin"
           cp "$OUT_DIR/firmware.bin" "$OUT_DIR/Inklinometer-${VERSION}-firmware.bin"
+
+          # Anleitungen DE/EN → PDF (Release + Artifact)
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc \
+            fonts-dejavu-core libpango-1.0-0 libpangocairo-1.0-0 \
+            libgdk-pixbuf-2.0-0 libffi8 shared-mime-info
+          pip install -q weasyprint
+          for pair in "Anleitung_DE:Bedienungsanleitung (DE):de" "Manual_EN:User Manual (EN):en"; do
+            SRC="${pair%%:*}"
+            REST="${pair#*:}"
+            TITLE="${REST%%:*}"
+            LANG="${REST##*:}"
+            MD="docs/${SRC}.md"
+            HTML="/tmp/${SRC}.html"
+            PDF="$OUT_DIR/Inklinometer-${VERSION}-${SRC}.pdf"
+            test -f "$MD"
+            pandoc "$MD" -s -t html5 -o "$HTML" \
+              --metadata title="Inklinometer DK8DE IIS2ICLX – ${TITLE}" \
+              -V lang="$LANG"
+            python3 -c "from weasyprint import HTML; HTML(filename='${HTML}').write_pdf('${PDF}'); print('PDF:', '${PDF}')"
+          done
 
           rm -rf site
           mkdir -p site/IMGs
@@ -148,6 +171,8 @@ jobs:
             IMGs/firmware.bin
             IMGs/Inklinometer-${{ steps.meta.outputs.version }}-factory.bin
             IMGs/Inklinometer-${{ steps.meta.outputs.version }}-firmware.bin
+            IMGs/Inklinometer-${{ steps.meta.outputs.version }}-Anleitung_DE.pdf
+            IMGs/Inklinometer-${{ steps.meta.outputs.version }}-Manual_EN.pdf
             IMGs/README.txt
           retention-days: 90
           if-no-files-found: error
@@ -166,10 +191,14 @@ jobs:
 
           - \`Inklinometer-${VERSION}-factory.bin\` – Komplettflash ab 0x0
           - \`Inklinometer-${VERSION}-firmware.bin\` – SoftAP-OTA (App)
+          - \`Inklinometer-${VERSION}-Anleitung_DE.pdf\` – Bedienungsanleitung (DE)
+          - \`Inklinometer-${VERSION}-Manual_EN.pdf\` – User Manual (EN)
 
           Webflasher: https://dk8de.github.io/Inklinometer_IIS2ICLXTR/" \
             "IMGs/Inklinometer-${VERSION}-factory.bin" \
             "IMGs/Inklinometer-${VERSION}-firmware.bin" \
+            "IMGs/Inklinometer-${VERSION}-Anleitung_DE.pdf" \
+            "IMGs/Inklinometer-${VERSION}-Manual_EN.pdf" \
             "IMGs/README.txt"
 
       - name: Upload Pages artifact

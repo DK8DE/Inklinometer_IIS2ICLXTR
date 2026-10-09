@@ -1,6 +1,6 @@
 ﻿# Inklinometer DK8DE IIS2ICLX â€“ ESP32-C3
 
-**Firmware:** <!--FW_VERSION-->1.3.1<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
+**Firmware:** <!--FW_VERSION-->1.3.2<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
 
 HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. ZusÃ¤tzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
 
@@ -11,7 +11,7 @@ HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfigurat
 | SDA | GPIO4 |
 | SCL | GPIO5 |
 | INT1 (FIFO Watermark) | GPIO6 |
-| INT2 (Sleep/Stationary) | GPIO7 |
+| INT2 (Stoß/Wake-up) | GPIO7 |
 | RS485 TX | GPIO21 (UART0) |
 | RS485 RX | GPIO20 (UART0) |
 | LBLED (Lebensblink) | GPIO10 |
@@ -103,7 +103,8 @@ UngÃ¼ltiger Wert:
 | Bedeutung | GET | SET | Wertebereich |
 |-----------|-----|-----|--------------|
 | Elevation (gefiltert) | `GETDG` | â€” | Winkel in Â°, Nachkommastellen laut `ELEVDEC` |
-| Stillstand (INT2 Sleep/Stationary) | `GETSETTLED` | â€” | `0` = bewegt, `1` = ruhig / eingelaufen |
+| Mechanik stabil (INT2, kein Stoß) | `GETSETTLED` | â€” | `1` = stabil, `0` = Ruck/Stoß |
+| Stoß erkannt (INT2, invertiert) | `GETSHOCK` | â€” | `1` = Ruck/Stoß, `0` = stabil |
 | Achsen tauschen (swapXY) | `GETSWAPXY` | `SETSWAPXY` | `0` / `1` |
 | REF invertieren | `GETINVREF` | `SETINVREF` | `0` / `1` |
 | SENSE invertieren | `GETINVSENS` | `SETINVSENS` | `0` / `1` |
@@ -113,14 +114,15 @@ UngÃ¼ltiger Wert:
 | Kalibrier-Offset | `GETCALIB` | `SETCALIB` | âˆ’180.0 â€¦ +180.0 |
 | Full-Scale Â±1 g | `GETFS1G` | `SETFS1G` | `0` = Â±2 g, `1` = Â±1 g |
 | Anzeige-Nachkommastellen | `GETELEVDEC` | `SETELEVDEC` | `0` / `1` / `2` |
-| EMA-Filter alpha | `GETFILTER` | `SETFILTER` | 0.01 â€¦ 1.0 (grÃ¶ÃŸer = schneller; bei Settled Ã—0,25) |
+| EMA-Filter alpha | `GETFILTER` | `SETFILTER` | 0.01 â€¦ 1.0 (grÃ¶ÃŸer = schneller; bei Stabil Ã—0,35 / bei Ruck Ã—1,8) |
+| Stoßschwelle (WAKE_UP_THS) | `GETSHOCKTHS` | `SETSHOCKTHS` | 1â€¦63 (kleiner = empfindlicher; 1 LSB â‰ˆ FS/64; Default 25) |
 | USB-Debug | `GETDEBUG` | `SETDEBUG` | `0` / `1` |
 
 ### Rauschfilter (INT1 / INT2)
 
 - **INT1 (GPIO6):** FIFO-Watermark (8 Samples @ 104 Hz) â†’ Mittelwert der neuesten `ax`/`ay`, dann `atan2`
 - **Sensor-LPF2:** Bandbreite ODR/20 (~5 Hz) â€“ Rauschen runter, ohne Sekunden-Nachlauf
-- **INT2 (GPIO7):** Sleep/Stationary-Status (Pegel) â†’ `GETSETTLED` / Web-Badge; Settled â†’ stÃ¤rkeres EMA, Moving â†’ schnelleres EMA
+- **INT2 (GPIO7):** Wake-up/Stoß-Status (Pegel) â†’ `GETSETTLED` / `GETSHOCK` / Web-Badge **stabil** / **Ruck**. Erkennt mechanische Unruhe und SchlÃ¤ge, **keine** langsamen WinkelÃ¤nderungen. Schwelle einstellbar (`SHOCKTHS` / Web). Stabil â†’ stÃ¤rkeres EMA, Ruck â†’ schnelleres EMA
 - Kein Pull-up an INT1/INT2 (Datenblatt)
 
 ### Soft-Limit (`LIMIT180`)
@@ -164,10 +166,11 @@ Bei Push auf `main` baut die Action `.github/workflows/build-webflasher.yml`:
 | `factory.bin` | Komplettflash ab Adresse `0x0` (Bootloader + Partitionstabelle + App) |
 | `firmware.bin` | nur App â€“ SoftAP-Web-Tab **Update** (OTA) |
 
-Keine separate Datenpartition â†’ zwei Images reichen. Artifact heiÃŸt `Inklinometer-<Version>` und enthÃ¤lt genau diese beiden `.bin` (+ kurze `README.txt`).
+Keine separate Datenpartition â†’ zwei Images reichen. Artifact heiÃŸt `Inklinometer-<Version>` und enthÃ¤lt die beiden `.bin`, PDF-Anleitungen und `README.txt`.
 
 - Webflasher (ESP Web Tools) nutzt `factory.bin`
 - Pages: https://dk8de.github.io/Inklinometer_IIS2ICLXTR/
+- Anleitungen: [`docs/Anleitung_DE.md`](docs/Anleitung_DE.md) / [`docs/Manual_EN.md`](docs/Manual_EN.md) â€“ bei neuem Release als PDF im GitHub Release
 
 ## Version & Build
 
@@ -187,7 +190,7 @@ UPLOAD_PORT=COM34 ./build.sh
 .\build.ps1 -UploadPort COM34
 ```
 
-GitHub Actions: bei jedem Push **Artifacts** (`factory.bin` / `firmware.bin`). Ein **GitHub Release** (`vX.Y.Z`) entsteht nur, wenn diese Version noch kein Release-Tag hat.
+GitHub Actions: bei jedem Push **Artifacts** (`factory.bin` / `firmware.bin` / PDF-Anleitungen). Ein **GitHub Release** (`vX.Y.Z`) entsteht nur, wenn diese Version noch kein Release-Tag hat; die PDFs werden dem Release beigefÃ¼gt.
 
 ## Build / Flash (manuell)
 

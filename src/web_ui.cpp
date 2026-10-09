@@ -110,15 +110,15 @@ static void handleGetConfig() {
   if (!checkAuth()) {
     return;
   }
-  char buf[420];
+  char buf[448];
   snprintf(buf, sizeof(buf),
            "{\"invertRotationDir\":%s,\"limit180\":%s,\"fullScale1g\":%s,"
            "\"debug\":%s,\"calib\":%.3f,\"mountRotation\":%d,\"filter\":%.3f,"
-           "\"decimals\":%d,\"lang\":\"%s\"}",
+           "\"shockThs\":%d,\"decimals\":%d,\"lang\":\"%s\"}",
            invertRotationDir ? "true" : "false",
            limitElevation0to180 ? "true" : "false", fullScale1g ? "true" : "false",
            debugSerial ? "true" : "false", (double)calibOffsetDeg, mountRotationDeg,
-           (double)filterAlpha, elevDecimals, uiLang);
+           (double)filterAlpha, shockThs, elevDecimals, uiLang);
   sendJson(200, buf);
 }
 
@@ -213,6 +213,14 @@ static void handlePostConfig() {
     }
     filterAlpha = f;
   }
+  if (jsonNumber(body, "shockThs", f)) {
+    int s = (int)lroundf(f);
+    if (s < 1 || s > 63) {
+      sendJson(400, "{\"ok\":false,\"err\":\"shockThs\"}");
+      return;
+    }
+    shockThs = s;
+  }
   if (jsonNumber(body, "decimals", f)) {
     int d = (int)lroundf(f);
     if (d < 0 || d > 2) {
@@ -238,6 +246,10 @@ static void handlePostConfig() {
 
   if (!applyFullScale()) {
     sendJson(500, "{\"ok\":false,\"err\":\"fs\"}");
+    return;
+  }
+  if (!applyShockThreshold()) {
+    sendJson(500, "{\"ok\":false,\"err\":\"shockThs\"}");
     return;
   }
   saveConfig();
