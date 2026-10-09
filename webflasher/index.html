@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inklinometer Webflasher</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 40rem;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.5;
+    }
+    code { padding: 0.1rem 0.35rem; border-radius: 4px; background: color-mix(in srgb, CanvasText 12%, Canvas); }
+    .hint { opacity: 0.8; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <h1>Inklinometer IIS2ICLX</h1>
+  <p>ESP32-C3 per Browser flashen (Chrome/Edge, USB).</p>
+  <p>Version: <strong id="fwVer">—</strong></p>
+  <p>
+    <esp-web-install-button manifest="./IMGs/manifest.json"></esp-web-install-button>
+  </p>
+  <p class="hint">
+    Nach dem Flashen SoftAP per Taster (GPIO0) starten, dann
+    <code>http://192.168.4.1</code> (Login <code>admin</code> / <code>Rotorconfig</code>).
+  </p>
+  <script>
+    fetch('./IMGs/manifest.json', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(m => { document.getElementById('fwVer').textContent = m.version || '—'; })
+      .catch(() => {});
+  </script>
+</body>
+</html>

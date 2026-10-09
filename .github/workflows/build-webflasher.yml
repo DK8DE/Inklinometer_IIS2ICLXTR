@@ -1,0 +1,139 @@
+name: Build Webflasher IMGs
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: webflasher-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'partitions.csv') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO
+        run: pip install -U platformio
+
+      - name: Build firmware (esp32-c3)
+        run: pio run -e esp32-c3
+
+      - name: Prepare IMGs for ESP Web Tools
+        id: meta
+        run: |
+          set -euo pipefail
+          ENV=esp32-c3
+          BUILD_DIR=".pio/build/${ENV}"
+          OUT_DIR="IMGs"
+          mkdir -p "$OUT_DIR"
+
+          VERSION="$(grep -oP 'FW_VERSION\s*=\s*"\K[^"]+' src/web_ui.cpp | head -n1 || true)"
+          if [ -z "$VERSION" ]; then
+            VERSION="0.0.0-${GITHUB_SHA:0:7}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Firmware-Version: ${VERSION}"
+
+          cp "$BUILD_DIR/bootloader.bin" "$OUT_DIR/bootloader.bin"
+          cp "$BUILD_DIR/partitions.bin" "$OUT_DIR/partitions.bin"
+          cp "$BUILD_DIR/firmware.bin" "$OUT_DIR/firmware.bin"
+
+          BOOT_APP0="$(find ~/.platformio/packages -name 'boot_app0.bin' | head -n1)"
+          if [ -z "$BOOT_APP0" ]; then
+            echo "boot_app0.bin nicht gefunden" >&2
+            exit 1
+          fi
+          cp "$BOOT_APP0" "$OUT_DIR/boot_app0.bin"
+
+          # Offsets wie Arduino-ESP32 / PlatformIO (4 MB Dual-OTA)
+          cat > "$OUT_DIR/manifest.json" <<EOF
+          {
+            "name": "Inklinometer IIS2ICLX",
+            "version": "${VERSION}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "ESP32-C3",
+                "parts": [
+                  { "path": "bootloader.bin", "offset": 0 },
+                  { "path": "partitions.bin", "offset": 32768 },
+                  { "path": "boot_app0.bin", "offset": 57344 },
+                  { "path": "firmware.bin", "offset": 65536 }
+                ]
+              }
+            ]
+          }
+          EOF
+
+          # Kompaktes JSON (ohne führende Einrückung aus dem Heredoc)
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("IMGs/manifest.json")
+          data = json.loads(p.read_text(encoding="utf-8"))
+          p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+
+          # Pages-Bundle: Webflasher-UI + IMGs/
+          rm -rf site
+          mkdir -p site/IMGs
+          cp webflasher/index.html site/index.html
+          cp IMGs/* site/IMGs/
+          ls -la IMGs site site/IMGs
+
+      - name: Upload IMGs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMGs-${{ steps.meta.outputs.version }}
+          path: |
+            IMGs/
+            webflasher/index.html
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy-pages:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

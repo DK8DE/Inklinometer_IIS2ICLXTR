@@ -12,7 +12,10 @@ alwaysApply: true
 - WHO_AM_I: Register `0x0F`, Wert `0x6B`
 - SDA: GPIO4
 - SCL: GPIO5
+- INT1: GPIO6 (FIFO Watermark → Burst-Mittelung)
+- INT2: GPIO7 (Sleep/Stationary → Settled)
 - I2C-Takt: 400 kHz
+- INT1/INT2: kein Pull-up
 
 ## Build / Flash
 - Projektroot: PlatformIO (`platformio.ini`)
