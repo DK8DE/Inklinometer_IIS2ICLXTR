@@ -11,116 +11,203 @@ static const char WEB_PAGE[] PROGMEM = R"HTML(
 <meta http-equiv="Cache-Control" content="no-store">
 <style>
 :root{
-  --bg:#0b1220;--panel:#121a2b;--card:#18233a;--line:#2a3a5a;
-  --text:#e8eefc;--muted:#9db0d0;--blue:#3b82f6;--green:#22c55e;
-  --red:#ef4444;--amber:#f59e0b;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;
+  color-scheme:dark;
+  --bg:#09131a;
+  --panel:#111d25;
+  --panel2:#162833;
+  --line:#2c3e4a;
+  --text:#eaf2f8;
+  --muted:#a9bac7;
+  --blue:#55a9e6;
+  --blue2:#8bc9f4;
+  --blue-deep:#d9efff;
+  --blue-light:#112b3d;
+  --cyan:#58cbe1;
+  --ok:#67d88b;
+  --warn:#fbbf24;
+  --err:#e07a72;
+  --white:#ffffff;
+  --gray:#a9bac7;
+  --shadow:0 16px 38px rgba(0,0,0,.30);
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-.wrap{max-width:980px;margin:0 auto;padding:16px}
-.header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap}
-.brand{display:flex;gap:10px;align-items:center}
-.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#60a5fa);display:grid;place-items:center;font-weight:800}
-h1{font-size:18px;margin:0}
-.sub{color:var(--muted);font-size:12px}
-.header-right{display:flex;gap:8px;align-items:center}
-.lang{display:flex;gap:4px;border:1px solid var(--line);border-radius:10px;padding:2px;background:var(--panel)}
-.lang button{border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
-.lang button.active{background:rgba(59,130,246,.2);color:var(--text)}
-.badge{padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);background:var(--card)}
-.badge.ok{border-color:rgba(34,197,94,.4);color:#86efac}
-.badge.warn{border-color:rgba(245,158,11,.4);color:#fcd34d}
-.badge.bad{border-color:rgba(239,68,68,.4);color:#fca5a5}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
-.tab{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
-.tab.active{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.5)}
-.grid{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:860px){.grid.two{grid-template-columns:1fr 1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
-.card h2{margin:0 0 10px;font-size:15px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
+[hidden]{display:none!important}
+body{
+  margin:0;min-height:100vh;color:var(--text);
+  font:15px/1.45 "Segoe UI",system-ui,sans-serif;
+  background:
+    radial-gradient(circle at 80% 0%,rgba(56,184,211,.14),transparent 32%),
+    radial-gradient(900px 480px at 0% -10%,rgba(18,101,168,.22),transparent 55%),
+    var(--bg);
+}
+header{
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding:1.1rem 1.4rem;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(13px);
+  position:sticky;top:0;z-index:5;
+}
+.brand{display:flex;flex-direction:column;gap:.15rem}
+.brand b{font-size:1.15rem;letter-spacing:.02em;color:var(--white)}
+.brand span{color:var(--muted);font-size:.85rem}
+.hdr-right{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;justify-content:flex-end}
+.lang{display:flex;gap:.35rem}
+.lang-btn{
+  appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+  border-radius:.55rem;padding:.35rem .55rem;cursor:pointer;font:inherit;font-size:.8rem;font-weight:700;
+  letter-spacing:.04em;min-width:2.6rem
+}
+.lang-btn:hover{border-color:var(--blue);background:var(--blue-light)}
+.lang-btn.active{color:var(--blue-deep);border-color:var(--blue);background:var(--blue-light)}
+.pill{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.35rem .7rem;border-radius:999px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--gray);font-size:.8rem
+}
+.dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--warn)}
+.dot.on{background:var(--ok);box-shadow:0 0 0 4px rgba(103,216,139,.15)}
+.dot.off{background:var(--err);box-shadow:0 0 0 4px rgba(224,122,114,.15)}
+main{max-width:920px;margin:0 auto;padding:1.25rem}
+nav{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+nav button{
+  appearance:none;border:1px solid var(--line);background:var(--panel);
+  color:var(--muted);padding:.55rem 1rem;border-radius:.7rem;cursor:pointer;font:inherit
+}
+nav button.active{
+  color:var(--blue-deep);border-color:var(--blue);
+  background:var(--blue-light);box-shadow:inset 0 -2px var(--blue)
+}
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);border-radius:1rem;padding:1.1rem 1.2rem;margin-bottom:1rem;
+  box-shadow:var(--shadow)
+}
+.card h2{margin:0 0 .85rem;font-size:1rem;color:var(--cyan);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem}
+.grid.two{display:grid;grid-template-columns:1fr;gap:0}
+@media(min-width:860px){.grid.two{grid-template-columns:1.1fr .9fr;gap:1rem}.grid.two>.card{margin-bottom:0}}
+.kv{background:var(--blue-light);border:1px solid var(--line);border-radius:.75rem;padding:.7rem .8rem}
+.kv .k{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+.kv .v{margin-top:.2rem;color:var(--white);word-break:break-all}
+.kvlist{display:grid;grid-template-columns:140px 1fr;gap:.45rem .75rem;font-size:.9rem;margin:.85rem 0}
+.kvlist .k{color:var(--muted)}.kvlist .v{color:var(--white)}
+.kv.hl{border-color:rgba(88,203,225,.45);background:rgba(17,43,61,.85)}
+.kv.hl .v{color:var(--cyan);font-size:1.15rem;font-weight:700}
+.cal-intro{
+  margin:0 0 1rem;padding:.85rem 1rem;border-radius:.75rem;
+  border:1px solid var(--line);background:rgba(12,26,34,.65);color:var(--muted);font-size:.9rem;line-height:1.5
+}
+.cal-intro b{color:var(--blue2)}
+.cal-steps{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem}
+@media(max-width:640px){.cal-steps{grid-template-columns:1fr}}
+.cal-step{
+  border:1px solid var(--line);border-radius:.85rem;padding:.9rem 1rem;
+  background:var(--blue-light);display:flex;flex-direction:column;gap:.65rem
+}
+.cal-step .step-no{color:var(--cyan);font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.cal-step .step-val{font-size:1.55rem;font-weight:700;color:var(--white);line-height:1.1}
+.cal-step .btn{width:100%}
+.cal-hint{
+  margin-top:1rem;padding:.7rem .85rem;border-radius:.65rem;
+  border:1px dashed var(--line);color:var(--muted);font-size:.88rem;background:rgba(9,19,26,.35)
+}
+.row{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem 1rem}
+.formgrid.checks{margin-top:.35rem}
+@media(max-width:640px){.formgrid{grid-template-columns:1fr}}
+.field{margin-bottom:.15rem}
+label{display:block;color:var(--muted);font-size:.8rem;margin:0 0 .35rem}
 input,select,button,textarea{font:inherit}
 input[type=text],input[type=number],input[type=password],select,textarea{
-  width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);
-  background:var(--card);color:var(--text);outline:none
+  width:100%;padding:.65rem .75rem;border-radius:.65rem;border:1px solid var(--line);
+  background:#0c1a22;color:var(--text);outline:none;margin-bottom:.35rem
 }
-input:focus,select:focus,textarea:focus{border-color:rgba(59,130,246,.7);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
-.btn{border:1px solid var(--line);background:var(--card);color:var(--text);padding:10px 12px;border-radius:10px;cursor:pointer}
-.btn.primary{background:var(--blue);border-color:transparent;color:white}
-.btn.danger{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:#fecaca}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+.check{display:flex;align-items:center;gap:.5rem;margin:.35rem 0;color:var(--muted);font-size:.9rem}
+.check input{width:auto;margin:0}
+.check label{margin:0;color:var(--text);font-size:.9rem;cursor:pointer}
+.actions{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:.4rem}
+.btn{
+  appearance:none;border:0;border-radius:.7rem;padding:.65rem 1rem;cursor:pointer;
+  font-weight:600;color:var(--white);background:var(--blue);
+  display:inline-flex;align-items:center;justify-content:center;
+  font:inherit;font-size:.95rem;line-height:1.35;text-decoration:none;white-space:nowrap
+}
+.btn:hover{filter:brightness(1.06)}
+.btn.primary{background:var(--blue);color:var(--white)}
+.btn.sec{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn.sec:hover{border-color:var(--blue);background:var(--blue-light);filter:none}
+.btn.danger{background:var(--err);color:var(--white)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 10px;font-size:13px}
-.kv .k{color:var(--muted)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.muted{color:var(--muted);font-size:12px}
-.hr{height:1px;background:var(--line);margin:12px 0}
-.toast{position:fixed;right:16px;bottom:16px;background:var(--card);border:1px solid var(--line);padding:10px 12px;border-radius:12px;display:none;max-width:360px;z-index:50}
+.muted{color:var(--muted);font-size:.9rem}
+.hr{height:1px;background:var(--line);margin:1rem 0}
+.toast{
+  position:fixed;right:16px;bottom:16px;background:var(--panel2);border:1px solid var(--line);
+  padding:.7rem .9rem;border-radius:.85rem;display:none;max-width:360px;z-index:50;
+  box-shadow:var(--shadow);color:var(--text)
+}
 .toast.show{display:block}
-.toast.ok{border-color:rgba(34,197,94,.5)}
-.toast.bad{border-color:rgba(239,68,68,.5)}
-.angle{font-size:84px;font-weight:700;letter-spacing:-.02em;line-height:1.05}
-.site-footer{margin-top:28px;padding:16px 0 8px;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:12px}
-.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:640px){.formgrid{grid-template-columns:1fr}}
-.field{margin-bottom:2px}
-.check{display:flex;align-items:center;gap:8px;margin-top:18px}
-.check input{width:auto}
-.progress{height:10px;background:#0f172a;border:1px solid var(--line);border-radius:999px;overflow:hidden}
-.bar{height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#60a5fa)}
+.toast.ok{border-color:rgba(103,216,139,.55)}
+.toast.bad{border-color:rgba(224,122,114,.55)}
+.angle{font-size:84px;font-weight:700;letter-spacing:-.02em;line-height:1.05;color:var(--white)}
+@media(max-width:640px){.angle{font-size:64px}}
+.tag{
+  display:inline-flex;align-items:center;gap:.35rem;margin-top:.85rem;
+  padding:.25rem .65rem;border-radius:.5rem;font-size:.8rem;font-weight:600;
+  background:var(--blue-light);color:var(--blue2);border:1px solid var(--line)
+}
+.tag.ok{color:var(--ok);border-color:rgba(103,216,139,.35)}
+.tag.warn{color:var(--warn);border-color:rgba(251,191,36,.35)}
+.progress{height:10px;background:#0c1a22;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:1rem 0}
+.bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.foot{color:var(--muted);font-size:.8rem;text-align:center;padding:1rem 0 2rem}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="header">
-    <div class="brand">
-      <div class="logo">I</div>
-      <div>
-        <h1>Inklinometer IIS2ICLX</h1>
-        <div class="sub" data-i18n="subtitle">SoftAP · Configuration · OTA</div>
-      </div>
-    </div>
-    <div class="header-right">
-      <div class="lang" id="langSwitch">
-        <button type="button" data-lang="de" class="active">DE</button>
-        <button type="button" data-lang="en">EN</button>
-      </div>
-      <div id="connBadge" class="badge warn" data-i18n="badge_loading">…</div>
-    </div>
+<header>
+  <div class="brand">
+    <b>Inklinometer IIS2ICLX</b>
+    <span data-i18n="subtitle">SoftAP · Configuration · OTA</span>
   </div>
-
-  <div class="tabs">
-    <button class="tab active" data-tab="status" data-i18n="tab_status">Status</button>
-    <button class="tab" data-tab="config" data-i18n="tab_config">Configuration</button>
-    <button class="tab" data-tab="calib" data-i18n="tab_calib">Calibration</button>
-    <button class="tab" data-tab="update" data-i18n="tab_update">Update</button>
-    <button class="tab" data-tab="reset" data-i18n="tab_reset">Reset</button>
+  <div class="hdr-right">
+    <div class="lang" id="langSwitch">
+      <button type="button" class="lang-btn active" data-lang="de">DE</button>
+      <button type="button" class="lang-btn" data-lang="en">EN</button>
+    </div>
+    <div class="pill"><span class="dot" id="connDot"></span><span id="connBadge" data-i18n="badge_loading">…</span></div>
   </div>
+</header>
+<main>
+  <nav>
+    <button class="active" data-tab="status" data-i18n="tab_status">Status</button>
+    <button data-tab="config" data-i18n="tab_config">Configuration</button>
+    <button data-tab="calib" data-i18n="tab_calib">Calibration</button>
+    <button data-tab="update" data-i18n="tab_update">Update</button>
+    <button data-tab="reset" data-i18n="tab_reset">Reset</button>
+  </nav>
 
-  <div id="tab-status" class="grid two">
+  <section id="tab-status" class="grid two">
     <div class="card">
       <h2 data-i18n="h_elevation">Elevation</h2>
       <div class="angle mono" id="elevVal">—</div>
       <div class="muted" id="elevHint" data-i18n="elev_hint">Live from sensor</div>
-      <div class="row" style="margin-top:12px">
-        <div id="settledBadge" class="badge warn" data-i18n="badge_settled_unk">…</div>
-      </div>
+      <div id="settledBadge" class="tag warn" data-i18n="badge_settled_unk">…</div>
     </div>
     <div class="card">
       <h2 data-i18n="h_system">System</h2>
-      <div class="kv">
-        <div class="k" data-i18n="k_uptime">Uptime</div><div class="mono" id="uptime">—</div>
-        <div class="k" data-i18n="k_error">Error</div><div class="mono" id="errFlag">—</div>
-        <div class="k" data-i18n="k_settled">Settled</div><div class="mono" id="settledFlag">—</div>
-        <div class="k">SoftAP</div><div class="mono" id="apInfo">—</div>
-        <div class="k">UID</div><div class="mono" id="uid">—</div>
-        <div class="k" data-i18n="k_fw">Firmware</div><div class="mono" id="fwVer">—</div>
-        <div class="k" data-i18n="k_heap">Free Heap</div><div class="mono" id="heap">—</div>
+      <div class="grid">
+        <div class="kv"><div class="k" data-i18n="k_uptime">Uptime</div><div class="v mono" id="uptime">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_error">Error</div><div class="v mono" id="errFlag">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_settled">Settled</div><div class="v mono" id="settledFlag">—</div></div>
+        <div class="kv"><div class="k">SoftAP</div><div class="v mono" id="apInfo">—</div></div>
+        <div class="kv"><div class="k">UID</div><div class="v mono" id="uid">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_fw">Firmware</div><div class="v mono" id="fwVer">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_heap">Free Heap</div><div class="v mono" id="heap">—</div></div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div id="tab-config" class="grid" style="display:none">
+  <section id="tab-config" hidden>
     <div class="card">
       <h2 data-i18n="h_config">Configuration (NVS)</h2>
       <div class="formgrid">
@@ -133,10 +220,10 @@ input:focus,select:focus,textarea:focus{border-color:rgba(59,130,246,.7);box-sha
             <option value="270">270°</option>
           </select>
         </div>
-        <div class="field check"><input type="checkbox" id="invertRotationDir"><label for="invertRotationDir" data-i18n="lbl_invrot">Invert rotation direction</label></div>
-        <div class="field check"><input type="checkbox" id="limit180"><label for="limit180" data-i18n="lbl_limit180">Limit angle to 0–180°</label></div>
-        <div class="field check"><input type="checkbox" id="fullScale1g"><label for="fullScale1g" data-i18n="lbl_fs1g">Full-scale ±1 g (else ±2 g)</label></div>
-        <div class="field check"><input type="checkbox" id="debugSerial"><label for="debugSerial" data-i18n="lbl_debug_usb">Debug via USB</label></div>
+        <div class="field">
+          <label for="decimals" data-i18n="lbl_decimals">Decimal places</label>
+          <select id="decimals"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select>
+        </div>
         <div class="field">
           <label for="calib" data-i18n="lbl_calib">Calibration offset (°)</label>
           <input type="number" id="calib" step="0.01" min="-180" max="180">
@@ -145,78 +232,89 @@ input:focus,select:focus,textarea:focus{border-color:rgba(59,130,246,.7);box-sha
           <label for="filter" data-i18n="lbl_filter">Filter alpha (0.01…1)</label>
           <input type="number" id="filter" step="0.01" min="0.01" max="1">
         </div>
-        <div class="field">
-          <label for="decimals" data-i18n="lbl_decimals">Decimal places</label>
-          <select id="decimals"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select>
-        </div>
+      </div>
+      <div class="formgrid checks">
+        <div class="field check"><input type="checkbox" id="invertRotationDir"><label for="invertRotationDir" data-i18n="lbl_invrot">Invert rotation direction</label></div>
+        <div class="field check"><input type="checkbox" id="limit180"><label for="limit180" data-i18n="lbl_limit180">Limit angle to 0–180°</label></div>
+        <div class="field check"><input type="checkbox" id="fullScale1g"><label for="fullScale1g" data-i18n="lbl_fs1g">Full-scale ±1 g (else ±2 g)</label></div>
+        <div class="field check"><input type="checkbox" id="debugSerial"><label for="debugSerial" data-i18n="lbl_debug_usb">Debug via USB</label></div>
       </div>
       <div class="hr"></div>
-      <div class="row">
-        <button class="btn primary" id="btnSaveCfg" data-i18n="btn_save">Save</button>
-        <button class="btn" id="btnReloadCfg" data-i18n="btn_reload">Reload</button>
+      <div class="actions">
+        <button class="btn" id="btnSaveCfg" data-i18n="btn_save">Save</button>
+        <button class="btn sec" id="btnReloadCfg" data-i18n="btn_reload">Reload</button>
       </div>
-      <div class="muted" style="margin-top:8px" data-i18n="hint_config_save">Changes are stored in NVS. Full-scale is applied to the sensor immediately.</div>
+      <div class="muted" style="margin-top:.65rem" data-i18n="hint_config_save">Changes are stored in NVS. Full-scale is applied to the sensor immediately.</div>
     </div>
-  </div>
+  </section>
 
-  <div id="tab-calib" class="grid" style="display:none">
+  <section id="tab-calib" hidden>
     <div class="card">
       <h2 data-i18n="h_calib">2-point level calibration</h2>
-      <p class="muted" data-i18n-html="p_calib">Place sensor on a level surface → <b>Measurement 1</b>. Then rotate ~180° in place → <b>Measurement 2</b>.<br>
-      Both values are typically close (~90°). Then: offset = 90° − mean.</p>
-      <div class="kv" style="margin:10px 0">
-        <div class="k" data-i18n="k_m1">Measurement 1</div><div class="mono" id="calA">—</div>
-        <div class="k" data-i18n="k_m2">Measurement 2</div><div class="mono" id="calB">—</div>
-        <div class="k" data-i18n="k_mid">Midpoint</div><div class="mono" id="calMid">—</div>
-        <div class="k" data-i18n="k_sep">Separation</div><div class="mono" id="calSep">—</div>
-        <div class="k" data-i18n="k_newoff">New offset</div><div class="mono" id="calOff">—</div>
-        <div class="k" data-i18n="k_cur">Current</div><div class="mono" id="calCur">—</div>
-      </div>
-      <div class="row">
-        <button class="btn primary" id="btnCal1" data-i18n="btn_cal1">1. Measure (level)</button>
-        <button class="btn primary" id="btnCal2" data-i18n="btn_cal2">2. Measure (180°)</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" id="btnCalApply" disabled data-i18n="btn_cal_apply">Apply offset</button>
-        <button class="btn" id="btnCalClear" data-i18n="btn_cal_clear">Clear steps</button>
-      </div>
-      <div class="muted" style="margin-top:8px" id="calHint" data-i18n="hint_cal_idle">Hold still; each measurement averages briefly (~0.5 s).</div>
-    </div>
-  </div>
+      <div class="cal-intro" data-i18n-html="p_calib">Place sensor on a level surface → <b>Measurement 1</b>. Then rotate ~180° in place → <b>Measurement 2</b>.<br>
+      Both values are typically close (~90°). Then: offset = 90° − mean.</div>
 
-  <div id="tab-update" class="grid" style="display:none">
+      <div class="cal-steps">
+        <div class="cal-step">
+          <div class="step-no" data-i18n="k_m1">Measurement 1</div>
+          <div class="step-val mono" id="calA">—</div>
+          <button class="btn" id="btnCal1" data-i18n="btn_cal1">1. Measure (level)</button>
+        </div>
+        <div class="cal-step">
+          <div class="step-no" data-i18n="k_m2">Measurement 2</div>
+          <div class="step-val mono" id="calB">—</div>
+          <button class="btn" id="btnCal2" data-i18n="btn_cal2">2. Measure (180°)</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="kv"><div class="k" data-i18n="k_mid">Midpoint</div><div class="v mono" id="calMid">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_sep">Separation</div><div class="v mono" id="calSep">—</div></div>
+        <div class="kv hl"><div class="k" data-i18n="k_newoff">New offset</div><div class="v mono" id="calOff">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_stored_off">Stored offset</div><div class="v mono" id="calCur">—</div></div>
+      </div>
+
+      <div class="hr"></div>
+      <div class="actions">
+        <button class="btn" id="btnCalApply" disabled data-i18n="btn_cal_apply">Apply offset</button>
+        <button class="btn sec" id="btnCalClear" data-i18n="btn_cal_clear">Clear steps</button>
+      </div>
+      <div class="cal-hint" id="calHint" data-i18n="hint_cal_idle">Hold still; each measurement averages briefly (~0.5 s).</div>
+    </div>
+  </section>
+
+  <section id="tab-update" hidden>
     <div class="card">
       <h2 data-i18n="h_update">Firmware update (OTA)</h2>
-      <div class="kv">
-        <div class="k" data-i18n="k_cur">Current</div><div class="mono" id="updCur">—</div>
-        <div class="k" data-i18n="k_part">Partition</div><div class="mono" id="updPart">—</div>
+      <div class="grid" style="margin-bottom:.85rem">
+        <div class="kv"><div class="k" data-i18n="k_cur">Current</div><div class="v mono" id="updCur">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_part">Partition</div><div class="v mono" id="updPart">—</div></div>
       </div>
-      <div class="hr"></div>
       <div class="field">
         <label for="fwFile">firmware.bin</label>
         <input type="file" id="fwFile" accept=".bin">
       </div>
-      <div class="progress" style="margin:12px 0"><div class="bar" id="updBar"></div></div>
-      <div class="row">
-        <button class="btn primary" id="btnUpload" data-i18n="btn_upload">Upload &amp; flash</button>
+      <div class="progress"><div class="bar" id="updBar"></div></div>
+      <div class="actions">
+        <button class="btn" id="btnUpload" data-i18n="btn_upload">Upload &amp; flash</button>
       </div>
-      <div class="muted" style="margin-top:8px" id="updMsg" data-i18n="hint_ota">App firmware only (dual OTA). Reboot after success.</div>
+      <div class="muted" style="margin-top:.65rem" id="updMsg" data-i18n="hint_ota">App firmware only (dual OTA). Reboot after success.</div>
     </div>
-  </div>
+  </section>
 
-  <div id="tab-reset" class="grid" style="display:none">
+  <section id="tab-reset" hidden>
     <div class="card">
       <h2 data-i18n="h_reset">Reboot / factory reset</h2>
       <p class="muted" data-i18n="p_reset">Reboot: SoftAP stays off until button again. Factory: clear NVS and restore compile defaults.</p>
-      <div class="row">
-        <button class="btn" id="btnReboot" data-i18n="btn_reboot">Reboot</button>
+      <div class="actions">
+        <button class="btn sec" id="btnReboot" data-i18n="btn_reboot">Reboot</button>
         <button class="btn danger" id="btnFactory" data-i18n="btn_factory">Factory reset</button>
       </div>
     </div>
-  </div>
+  </section>
 
-  <footer class="site-footer">&copy; DK8DE J&ouml;rg K&ouml;rner 2026</footer>
-</div>
+  <div class="foot">&copy; DK8DE J&ouml;rg K&ouml;rner 2026</div>
+</main>
 <div class="toast" id="toast"></div>
 <script>
 const $ = (id)=>document.getElementById(id);
@@ -243,9 +341,9 @@ de:{
   btn_save:'Speichern', btn_reload:'Neu laden',
   hint_config_save:'Änderungen werden im NVS gespeichert. Full-Scale wird sofort am Sensor gesetzt.',
   h_calib:'2-Punkt-Ebenkalibrierung',
-  p_calib:'Sensor auf ebene Fläche legen → <b>Messung 1</b>. Dann auf der Stelle horizontal ca. 180° drehen → <b>Messung 2</b>.<br>Beide Werte liegen typischerweise nahe beieinander (~90°). Daraus: Offset = 90° − Mittelwert.',
+  p_calib:'Eben ablegen → <b>Messung 1</b>. Horizontal ca. 180° drehen → <b>Messung 2</b>. Beide Werte typisch nahe (~90°). Offset = 90° − Mittelwert.',
   k_m1:'Messung 1', k_m2:'Messung 2', k_mid:'Mittelpunkt', k_sep:'Abstand',
-  k_newoff:'Neuer Offset', k_cur:'Aktuell',
+  k_newoff:'Neuer Offset', k_cur:'Aktuell', k_stored_off:'Gespeicherter Offset',
   btn_cal1:'1. Messung (eben)', btn_cal2:'2. Messung (180°)',
   btn_cal_apply:'Offset übernehmen', btn_cal_clear:'Schritte löschen',
   hint_cal_idle:'Bitte ruhig halten; jede Messung mittelt kurz (~0,5 s).',
@@ -297,9 +395,9 @@ en:{
   btn_save:'Save', btn_reload:'Reload',
   hint_config_save:'Changes are stored in NVS. Full-scale is applied to the sensor immediately.',
   h_calib:'2-point level calibration',
-  p_calib:'Place sensor on a level surface → <b>Measurement 1</b>. Then rotate ~180° in place → <b>Measurement 2</b>.<br>Both values are typically close (~90°). Then: offset = 90° − mean.',
+  p_calib:'Place level → <b>Measurement 1</b>. Rotate ~180° in place → <b>Measurement 2</b>. Both typically near (~90°). Offset = 90° − mean.',
   k_m1:'Measurement 1', k_m2:'Measurement 2', k_mid:'Midpoint', k_sep:'Separation',
-  k_newoff:'New offset', k_cur:'Current',
+  k_newoff:'New offset', k_cur:'Current', k_stored_off:'Stored offset',
   btn_cal1:'1. Measure (level)', btn_cal2:'2. Measure (180°)',
   btn_cal_apply:'Apply offset', btn_cal_clear:'Clear steps',
   hint_cal_idle:'Hold still; each measurement averages briefly (~0.5 s).',
@@ -350,7 +448,7 @@ function applyLang(next){
     if(v==='1') applySettled(true);
     else if(v==='0') applySettled(false);
   }
-  if(ws && ws.readyState===1) $('connBadge').textContent=t('badge_live');
+  if(ws && ws.readyState===1) setConn('live');
 }
 async function setLang(next){
   const prev=lang;
@@ -390,12 +488,29 @@ async function api(path, opts){
   }
 }
 function showTab(name){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('nav button[data-tab]').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   ['status','config','calib','update','reset'].forEach(n=>{
-    const el=$('tab-'+n); if(el) el.style.display = (n===name)?'':'none';
+    const el=$('tab-'+n);
+    if(!el) return;
+    const on = (n===name);
+    el.hidden = !on;
+    // display:grid auf .grid überschreibt sonst das native [hidden]
+    el.style.display = on ? '' : 'none';
   });
 }
-document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+document.querySelectorAll('nav button[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+
+function setConn(mode){
+  const text=$('connBadge');
+  const dot=$('connDot');
+  const keys={live:'badge_live',ok:'badge_ok',http:'badge_http',offline:'badge_offline',loading:'badge_loading'};
+  if(text) text.textContent=t(keys[mode]||'badge_loading');
+  if(dot){
+    dot.className='dot';
+    if(mode==='live'||mode==='ok') dot.classList.add('on');
+    else if(mode==='offline') dot.classList.add('off');
+  }
+}
 
 function fmtUptime(s){
   s=Math.floor(s||0); const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
@@ -439,7 +554,7 @@ function applySettled(v){
   const b = $('settledBadge');
   if(b){
     b.textContent = settled ? t('badge_settled') : t('badge_moving');
-    b.className = 'badge ' + (settled ? 'ok' : 'warn');
+    b.className = 'tag ' + (settled ? 'ok' : 'warn');
   }
 }
 function applyLive(a){
@@ -450,25 +565,20 @@ function applyLive(a){
   }
   if(a.settled!=null) applySettled(a.settled);
   if(a.heap!=null) $('heap').textContent = a.heap+' B';
-  $('connBadge').textContent = (ws && ws.readyState===1) ? t('badge_live') : t('badge_ok');
-  $('connBadge').className = 'badge ok';
+  setConn((ws && ws.readyState===1) ? 'live' : 'ok');
 }
 function connectWs(){
   if(wsRetry){ clearTimeout(wsRetry); wsRetry=null; }
   try{ if(ws){ ws.onclose=null; ws.close(); } }catch(e){}
   const proto = location.protocol==='https:' ? 'wss://' : 'ws://';
   ws = new WebSocket(proto + location.hostname + ':81/');
-  ws.onopen = ()=>{
-    $('connBadge').textContent=t('badge_live');
-    $('connBadge').className='badge ok';
-  };
+  ws.onopen = ()=>setConn('live');
   ws.onmessage = (ev)=>{
     try{ applyLive(JSON.parse(ev.data)); }catch(e){}
   };
   ws.onerror = ()=>{};
   ws.onclose = ()=>{
-    $('connBadge').textContent=t('badge_http');
-    $('connBadge').className='badge warn';
+    setConn('http');
     wsRetry = setTimeout(connectWs, 2000);
   };
 }
@@ -479,10 +589,7 @@ async function refreshLive(){
     const a = await api('/api/live');
     applyLive(a);
   }catch(e){
-    if(!ws || ws.readyState!==1){
-      $('connBadge').textContent=t('badge_offline');
-      $('connBadge').className='badge bad';
-    }
+    if(!ws || ws.readyState!==1) setConn('offline');
   }finally{
     liveBusy = false;
   }
