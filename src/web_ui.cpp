@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "app_api.h"
+#include "version.h"
 #include "web_content.h"
 
 static WebServer *g_server = nullptr;
@@ -17,7 +18,7 @@ static bool g_wsStarted = false;
 
 static const char *WEB_USER = "admin";
 static const char *WEB_PASS = "Rotorconfig";
-static const char *FW_VERSION = "1.2.0-calib";
+static const char *FW_VERSION = FW_VERSION_STR;
 
 static bool checkAuth() {
   if (g_server == nullptr) {

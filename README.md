@@ -1,4 +1,6 @@
-# Inklinometer IIS2ICLX – ESP32-C3
+# Inklinometer DK8DE IIS2ICLX – ESP32-C3
+
+**Firmware:** <!--FW_VERSION-->1.3.0<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
 
 Hochauflösende Antennen-Elevation über ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. Zusätzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
 
@@ -167,7 +169,27 @@ Keine separate Datenpartition → zwei Images reichen. Artifact heißt `Inklinom
 - Webflasher (ESP Web Tools) nutzt `factory.bin`
 - Pages: https://dk8de.github.io/Inklinometer_IIS2ICLXTR/
 
-## Build / Flash
+## Version & Build
+
+Version nur in [`src/version.h`](src/version.h) ändern (`FW_VERSION_STR` / Major/Minor/Patch).
+
+```bash
+# Git Bash / Linux / macOS
+./build.sh                 # sync README → compile → Upload auf MCU
+./build.sh --no-upload
+./build.sh --sync-only
+UPLOAD_PORT=COM34 ./build.sh
+
+# Windows PowerShell
+.\build.ps1
+.\build.ps1 -NoUpload
+.\build.ps1 -SyncOnly
+.\build.ps1 -UploadPort COM34
+```
+
+GitHub Actions: bei jedem Push **Artifacts** (`factory.bin` / `firmware.bin`). Ein **GitHub Release** (`vX.Y.Z`) entsteht nur, wenn diese Version noch kein Release-Tag hat.
+
+## Build / Flash (manuell)
 
 ```bash
 pio run -t upload

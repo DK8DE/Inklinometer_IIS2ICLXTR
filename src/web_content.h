@@ -7,7 +7,7 @@ static const char WEB_PAGE[] PROGMEM = R"HTML(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inklinometer</title>
+<title>Inklinometer DK8DE IIS2ICLX</title>
 <meta http-equiv="Cache-Control" content="no-store">
 <style>
 :root{
@@ -166,7 +166,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
 <body>
 <header>
   <div class="brand">
-    <b>Inklinometer IIS2ICLX</b>
+    <b>Inklinometer DK8DE IIS2ICLX</b>
     <span data-i18n="subtitle">SoftAP · Configuration · OTA</span>
   </div>
   <div class="hdr-right">

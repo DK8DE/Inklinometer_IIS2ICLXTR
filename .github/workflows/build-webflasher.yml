@@ -21,10 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
+      is_new_release: ${{ steps.meta.outputs.is_new_release }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -56,13 +59,22 @@ jobs:
           OUT_DIR="IMGs"
           mkdir -p "$OUT_DIR"
 
-          VERSION="$(grep -oP 'FW_VERSION\s*=\s*"\K[^"]+' src/web_ui.cpp | head -n1 || true)"
-          if [ -z "$VERSION" ]; then
-            VERSION="0.0.0-${GITHUB_SHA:0:7}"
-          fi
+          chmod +x scripts/read_version.sh scripts/sync_version.sh
+          VERSION="$(./scripts/read_version.sh)"
+          ./scripts/sync_version.sh
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Firmware-Version: ${VERSION}"
           export FW_VERSION="${VERSION}"
+
+          TAG="v${VERSION}"
+          IS_NEW=0
+          if [[ "${{ github.event_name }}" == "push" && ( "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ) ]]; then
+            if ! gh release view "$TAG" >/dev/null 2>&1; then
+              IS_NEW=1
+            fi
+          fi
+          echo "is_new_release=${IS_NEW}" >> "$GITHUB_OUTPUT"
+          echo "Release-Tag ${TAG}: neu=${IS_NEW}"
 
           BOOT_APP0="$(find ~/.platformio/packages -name 'boot_app0.bin' | head -n1)"
           if [ -z "$BOOT_APP0" ]; then
@@ -70,10 +82,8 @@ jobs:
             exit 1
           fi
 
-          # App-Image für SoftAP-OTA / esptool ab 0x10000
           cp "$BUILD_DIR/firmware.bin" "$OUT_DIR/firmware.bin"
 
-          # Ein Komplettimage ab Flash-Adresse 0 (Bootloader + Partitionen + App)
           pip install -q esptool
           python -m esptool --chip esp32c3 merge_bin \
             -o "$OUT_DIR/factory.bin" \
@@ -83,14 +93,13 @@ jobs:
             0xe000 "$BOOT_APP0" \
             0x10000 "$BUILD_DIR/firmware.bin"
 
-          # ESP Web Tools: ein Teil = factory.bin @ 0
           python3 - <<'PY'
           import json
           from pathlib import Path
           import os
           version = os.environ["FW_VERSION"]
           data = {
-            "name": "Inklinometer IIS2ICLX",
+            "name": "Inklinometer DK8DE IIS2ICLX",
             "version": version,
             "new_install_prompt_erase": True,
             "builds": [
@@ -105,9 +114,8 @@ jobs:
           )
           PY
 
-          # Kurzer Hinweis im Artifact
           cat > "$OUT_DIR/README.txt" <<EOF
-          Inklinometer IIS2ICLX ${VERSION}
+          Inklinometer DK8DE IIS2ICLX ${VERSION}
 
           factory.bin  - Komplettflash ab Adresse 0 (esptool / Webflasher)
           firmware.bin - nur App fuer SoftAP-OTA (Web-Tab Update)
@@ -119,23 +127,50 @@ jobs:
             SoftAP starten -> http://192.168.4.1 -> Update -> firmware.bin
           EOF
 
-          # Pages-Bundle
+          # Versionierte Kopien fuer Release-Assets
+          cp "$OUT_DIR/factory.bin" "$OUT_DIR/Inklinometer-${VERSION}-factory.bin"
+          cp "$OUT_DIR/firmware.bin" "$OUT_DIR/Inklinometer-${VERSION}-firmware.bin"
+
           rm -rf site
           mkdir -p site/IMGs
           cp webflasher/index.html site/index.html
           cp "$OUT_DIR/factory.bin" "$OUT_DIR/firmware.bin" "$OUT_DIR/manifest.json" site/IMGs/
           ls -la IMGs site/IMGs
+        env:
+          GH_TOKEN: ${{ github.token }}
 
-      - name: Upload flash binaries
+      - name: Upload flash binaries (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: Inklinometer-${{ steps.meta.outputs.version }}
           path: |
             IMGs/factory.bin
             IMGs/firmware.bin
+            IMGs/Inklinometer-${{ steps.meta.outputs.version }}-factory.bin
+            IMGs/Inklinometer-${{ steps.meta.outputs.version }}-firmware.bin
             IMGs/README.txt
           retention-days: 90
           if-no-files-found: error
+
+      - name: Create GitHub Release (nur bei neuer Version)
+        if: steps.meta.outputs.is_new_release == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          TAG="v${VERSION}"
+          gh release create "$TAG" \
+            --title "Inklinometer DK8DE IIS2ICLX ${VERSION}" \
+            --notes "Firmware ${VERSION} aus \`src/version.h\`.
+
+          - \`Inklinometer-${VERSION}-factory.bin\` – Komplettflash ab 0x0
+          - \`Inklinometer-${VERSION}-firmware.bin\` – SoftAP-OTA (App)
+
+          Webflasher: https://dk8de.github.io/Inklinometer_IIS2ICLXTR/" \
+            "IMGs/Inklinometer-${VERSION}-factory.bin" \
+            "IMGs/Inklinometer-${VERSION}-firmware.bin" \
+            "IMGs/README.txt"
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')

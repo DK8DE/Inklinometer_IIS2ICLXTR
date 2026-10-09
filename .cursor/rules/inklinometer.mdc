@@ -17,6 +17,11 @@ alwaysApply: true
 - I2C-Takt: 400 kHz
 - INT1/INT2: kein Pull-up
 
+## Version
+- Einzige Quelle: `src/version.h` (`FW_VERSION_STR`)
+- Lokal: `./build.sh` (sync + compile + upload)
+- GitHub: Artifacts immer; Release nur bei neuer Version (Tag `vX.Y.Z`)
+
 ## Build / Flash
 - Projektroot: PlatformIO (`platformio.ini`)
 - Environment: `esp32-c3`

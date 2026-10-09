@@ -2,6 +2,8 @@
 .cache
 IMGs/
 site/
+VERSION
+*.bak
 .vscode/.browse.c_cpp.props.json
 .vscode/c_cpp_properties.json
 .vscode/launch.json
