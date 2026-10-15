@@ -65,6 +65,11 @@ static constexpr uint8_t CTRL1_XL_FS_1G = 0x4A;  // FS=±1 g
 // LPF2 HPCF=010 → ODR/20 (~5 Hz @ 104 Hz). ODR/800 war zu träge (Sekunden-Nachlauf).
 static constexpr uint8_t CTRL8_XL_LPF_ODR_DIV20 = 0x40;
 static constexpr uint8_t DEF_SHOCK_THS = 25;           // WAKE_UP_THS 1…63 (~FS/64 pro Stufe)
+static constexpr int DEF_SHOCK_WIN_S = 60;             // Überwachungsfenster in s (1…3600)
+static constexpr int DEF_SHOCK_LIMIT = 5;              // Rucke im Fenster → Fehler (0 = aus)
+static constexpr int SHOCK_LIMIT_MAX = 60;             // < SHOCK_RING
+static constexpr int SHOCK_WIN_MAX_S = 3600;
+static constexpr int SHOCK_RING = 64;                  // Zeitstempel-Ringpuffer
 static constexpr uint8_t WAKE_UP_DUR_VAL = 0x20;       // wake_dur=1 (2 ODR), sleep_dur=0 (16 ODR)
 static constexpr float SENS_2G_MG_LSB = 0.061f;
 static constexpr float SENS_1G_MG_LSB = 0.031f;
@@ -97,12 +102,15 @@ int elevDecimals = DEF_ELEV_DEC;
 bool fullScale1g = DEF_FS_1G;
 float filterAlpha = DEF_FILTER;  // 0.01…1.0; größer = schneller
 int shockThs = DEF_SHOCK_THS;    // INT2 Wake-up-Schwelle 1…63
+int shockWinSec = DEF_SHOCK_WIN_S;  // Überwachungsfenster (s)
+int shockLimit = DEF_SHOCK_LIMIT;   // Rucke im Fenster bis Fehler (0 = aus)
 bool debugSerial = DEF_DEBUG;    // USB-CDC Debug
 char uiLang[4] = "de";           // Web-UI: "de" / "en"
 bool g_errorActive = false;      // true → LBLED dauerhaft an
 
 static float g_elevFiltered = NAN;
 static bool g_appliedFs1g = false;
+static int g_appliedShockThs = -1;  // zuletzt erfolgreich geschriebener WAKE_UP_THS
 static bool g_settled = true;    // INT2: true = stabil (kein Stoß)
 static bool g_fifoOk = false;    // FIFO+INT1 configured
 static Preferences g_prefs;
@@ -127,6 +135,17 @@ static bool writeReg(uint8_t reg, uint8_t val) {
   return Wire.endTransmission(true) == 0;
 }
 
+/** Unter SoftAP/WiFi oft flüchtige I2C-NACKs – kurz retrien. */
+static bool writeRegRetry(uint8_t reg, uint8_t val, int attempts = 6) {
+  for (int i = 0; i < attempts; i++) {
+    if (writeReg(reg, val)) {
+      return true;
+    }
+    delay(3);
+  }
+  return false;
+}
+
 static bool readRegs(uint8_t reg, uint8_t *buf, size_t len) {
   Wire.beginTransmission(ADDR);
   Wire.write(reg);
@@ -146,6 +165,24 @@ static bool readReg(uint8_t reg, uint8_t &val) {
   return readRegs(reg, &val, 1);
 }
 
+static bool sensorWhoAmIOk() {
+  uint8_t who = 0;
+  return readReg(REG_WHO_AM_I, who) && who == WHO_AM_I_VAL;
+}
+
+// Sensor-Watchdog: keine frischen Messwerte → Fehler + Neuinitialisierung
+static constexpr uint32_t SENSOR_STALE_MS = 1500;
+static constexpr uint32_t SENSOR_RECOVER_MS = 2000;
+static uint32_t g_lastSampleOkMs = 0;
+static uint32_t g_lastRecoverMs = 0;
+static bool g_sensorStale = false;
+
+static void clearErrorIfSensorOk() {
+  if (g_errorActive && !g_sensorStale && sensorWhoAmIOk()) {
+    g_errorActive = false;
+  }
+}
+
 static bool softReset() {
   if (!writeReg(REG_CTRL3_C, 0x01)) {
     return false;
@@ -156,6 +193,9 @@ static bool softReset() {
       return false;
     }
     if ((v & 0x01) == 0) {
+      // Sensor-Register neu – Apply-Caches ungültig
+      g_appliedFs1g = !fullScale1g;
+      g_appliedShockThs = -1;
       return true;
     }
     delay(10);
@@ -227,20 +267,29 @@ static int clampShockThs(int v) {
 bool applyShockThreshold() {
   shockThs = clampShockThs(shockThs);
   // WK_THS[5:0]; 1 LSB ≈ FS/64
-  if (!writeReg(REG_WAKE_UP_THS, (uint8_t)(shockThs & 0x3F))) {
+  if (shockThs == g_appliedShockThs) {
+    return true;
+  }
+  if (!writeRegRetry(REG_WAKE_UP_THS, (uint8_t)(shockThs & 0x3F))) {
     g_errorActive = true;
     return false;
   }
+  g_appliedShockThs = shockThs;
+  clearErrorIfSensorOk();
   return true;
 }
 
 bool applyFullScale() {
-  if (!writeReg(REG_CTRL1_XL, ctrl1XlForFs())) {
+  if (fullScale1g == g_appliedFs1g) {
+    return true;
+  }
+  if (!writeRegRetry(REG_CTRL1_XL, ctrl1XlForFs())) {
     g_errorActive = true;
     return false;
   }
   g_appliedFs1g = fullScale1g;
   delay(20);
+  clearErrorIfSensorOk();
   return true;
 }
 
@@ -270,6 +319,7 @@ static bool initSensor() {
     return false;
   }
   g_fifoOk = true;
+  g_appliedShockThs = shockThs;
   delay(50);
   return true;
 }
@@ -277,6 +327,77 @@ static bool initSensor() {
 static void updateSettledFromInt2() {
   // SLEEP_STATUS_ON_INT: HIGH = Sleep/stabil (kein Stoß über Schwelle)
   g_settled = digitalRead(PIN_INT2) == HIGH;
+}
+
+// ---------------------------------------------------------------------------
+// Ruck-Überwachung (INT2 fallende Flanke = Stabil → Ruck)
+// Gleitendes Zeitfenster; kein Zähler, der überlaufen kann (Ringpuffer + Differenzen).
+// Fehler bleibt gesetzt, bis er per RS485/Web gelöscht wird.
+// ---------------------------------------------------------------------------
+
+static volatile bool g_int2Fall = false;
+static uint32_t g_shockTs[SHOCK_RING];
+static int g_shockHead = 0;   // nächster Schreibindex
+static int g_shockN = 0;      // Anzahl gültiger Einträge im Ring
+static bool g_shockErr = false;
+
+static void IRAM_ATTR onInt2Fall() {
+  g_int2Fall = true;
+}
+
+static void shockPrune(uint32_t now) {
+  const uint32_t winMs = (uint32_t)shockWinSec * 1000UL;
+  while (g_shockN > 0) {
+    const int oldest = (g_shockHead - g_shockN + SHOCK_RING) % SHOCK_RING;
+    if ((uint32_t)(now - g_shockTs[oldest]) > winMs) {
+      g_shockN--;
+    } else {
+      break;
+    }
+  }
+}
+
+static void shockRegister(uint32_t now) {
+  shockPrune(now);
+  g_shockTs[g_shockHead] = now;
+  g_shockHead = (g_shockHead + 1) % SHOCK_RING;
+  if (g_shockN < SHOCK_RING) {
+    g_shockN++;
+  }
+  if (shockLimit > 0 && g_shockN >= shockLimit) {
+    g_shockErr = true;
+  }
+}
+
+/** In loop() aufrufen: ISR-Flag auswerten, Fenster bereinigen. */
+static void shockMonitorPoll() {
+  const uint32_t now = millis();
+  if (g_int2Fall) {
+    g_int2Fall = false;
+    shockRegister(now);
+  } else {
+    shockPrune(now);
+  }
+}
+
+static void shockMonitorReset() {
+  g_int2Fall = false;
+  g_shockHead = 0;
+  g_shockN = 0;
+}
+
+int shockEventsInWindow() {
+  shockPrune(millis());
+  return g_shockN;
+}
+
+bool shockErrorActive() {
+  return g_shockErr;
+}
+
+void shockErrorClear() {
+  g_shockErr = false;
+  shockMonitorReset();
 }
 
 bool isSettled() {
@@ -440,6 +561,11 @@ float currentElevationOut() {
 bool sampleElevation() {
   updateSettledFromInt2();
 
+  // Sensor ausgefallen: nicht jedes Mal in I2C-Timeouts laufen (blockiert Web/RS485)
+  if (g_sensorStale) {
+    return false;
+  }
+
   float elev = 0;
   bool got = false;
 
@@ -482,11 +608,62 @@ bool sampleElevation() {
   } else {
     g_elevFiltered = wrap360(g_elevFiltered + alpha * angleDiffDeg(elev, g_elevFiltered));
   }
+  g_lastSampleOkMs = millis();
   return true;
 }
 
 void resetElevationFilter() {
   g_elevFiltered = NAN;
+}
+
+/** I2C-Bus freigeben (Slave hält SDA low) und Peripherie neu starten. */
+static void i2cBusRecover() {
+  Wire.end();
+  pinMode(PIN_SDA, INPUT_PULLUP);
+  pinMode(PIN_SCL, OUTPUT);
+  digitalWrite(PIN_SCL, HIGH);
+  for (int i = 0; i < 9 && digitalRead(PIN_SDA) == LOW; i++) {
+    digitalWrite(PIN_SCL, LOW);
+    delayMicroseconds(5);
+    digitalWrite(PIN_SCL, HIGH);
+    delayMicroseconds(5);
+  }
+  Wire.begin(PIN_SDA, PIN_SCL);
+  Wire.setClock(100000);
+  Wire.setTimeOut(200);
+}
+
+/** Sensor neu initialisieren; bei Erfolg Fehlerzustand beenden. */
+static void recoverSensor() {
+  i2cBusRecover();
+  if (initSensor()) {
+    g_sensorStale = false;
+    g_errorActive = false;
+    g_lastSampleOkMs = millis();
+    g_elevFiltered = NAN;
+    shockMonitorReset();  // Reset des Sensors kann INT2 flattern lassen
+  }
+}
+
+/** In loop(): ausgefallenen Sensor erkennen und regelmäßig neu starten. */
+static void sensorWatchdog() {
+  const uint32_t now = millis();
+  static uint32_t prevLoopMs = 0;
+  // Lange Blockade (OTA, Kalibrierung, …) nicht als Sensorausfall werten
+  if (prevLoopMs != 0 && (uint32_t)(now - prevLoopMs) > 1000) {
+    g_lastSampleOkMs = now;
+  }
+  prevLoopMs = now;
+
+  if (!g_sensorStale && (uint32_t)(now - g_lastSampleOkMs) > SENSOR_STALE_MS) {
+    g_sensorStale = true;
+    g_errorActive = true;
+    g_lastRecoverMs = now - SENSOR_RECOVER_MS;  // sofort erster Versuch
+  }
+  if (g_sensorStale && (uint32_t)(now - g_lastRecoverMs) >= SENSOR_RECOVER_MS) {
+    g_lastRecoverMs = now;
+    recoverSensor();
+  }
 }
 
 static bool g_calib1Ok = false;
@@ -626,6 +803,8 @@ void saveConfig() {
   g_prefs.putBool("fs1g", fullScale1g);
   g_prefs.putFloat("filt", filterAlpha);
   g_prefs.putInt("shock", shockThs);
+  g_prefs.putInt("shockWin", shockWinSec);
+  g_prefs.putInt("shockLim", shockLimit);
   g_prefs.putBool("debug", debugSerial);
   g_prefs.putString("uiLang", uiLang);
   g_prefs.end();
@@ -670,6 +849,8 @@ void loadConfig() {
     fullScale1g = g_prefs.getBool("fs1g", fullScale1g);
     filterAlpha = g_prefs.getFloat("filt", filterAlpha);
     shockThs = g_prefs.getInt("shock", shockThs);
+    shockWinSec = g_prefs.getInt("shockWin", shockWinSec);
+    shockLimit = g_prefs.getInt("shockLim", shockLimit);
     debugSerial = g_prefs.getBool("debug", debugSerial);
     {
       String lang = g_prefs.getString("uiLang", DEF_UI_LANG);
@@ -696,6 +877,18 @@ void loadConfig() {
     filterAlpha = 1.0f;
   }
   shockThs = clampShockThs(shockThs);
+  if (shockWinSec < 1) {
+    shockWinSec = 1;
+  }
+  if (shockWinSec > SHOCK_WIN_MAX_S) {
+    shockWinSec = SHOCK_WIN_MAX_S;
+  }
+  if (shockLimit < 0) {
+    shockLimit = 0;
+  }
+  if (shockLimit > SHOCK_LIMIT_MAX) {
+    shockLimit = SHOCK_LIMIT_MAX;
+  }
   calibOffsetDeg = clampOffset180(calibOffsetDeg);
   mountRotationDeg = normalizeMountRotation(mountRotationDeg);
   normalizeUiLang();
@@ -718,11 +911,16 @@ void factoryResetConfig() {
   fullScale1g = DEF_FS_1G;
   filterAlpha = DEF_FILTER;
   shockThs = DEF_SHOCK_THS;
+  shockWinSec = DEF_SHOCK_WIN_S;
+  shockLimit = DEF_SHOCK_LIMIT;
+  g_shockErr = false;
+  shockMonitorReset();
   debugSerial = DEF_DEBUG;
   strncpy(uiLang, DEF_UI_LANG, sizeof(uiLang) - 1);
   uiLang[sizeof(uiLang) - 1] = '\0';
   saveConfig();
-  applyShockThreshold();
+  // Sensor-Register übernimmt loop() (shockThs != g_appliedShockThs); kein I2C
+  // hier – beim Boot-Werkreset ist Wire noch nicht gestartet.
 }
 
 
@@ -735,11 +933,17 @@ static void blinkLbLedConfirm(int times) {
   }
 }
 
-static void toggleSoftAp() {
-  if (webUiIsActive()) {
-    webUiEnd();
-    debugPrintf("SoftAP aus\n");
+/** SoftAP gezielt ein-/ausschalten (Taster toggelt, RS485 setzt explizit). */
+static void setSoftAp(bool on) {
+  if (!on) {
+    if (webUiIsActive()) {
+      webUiEnd();
+      debugPrintf("SoftAP aus\n");
+    }
     return;
+  }
+  if (webUiIsActive()) {
+    return;  // läuft bereits
   }
   char uid[16];
   char ssid[32];
@@ -747,6 +951,10 @@ static void toggleSoftAp() {
   snprintf(ssid, sizeof(ssid), "INKLINO-%s", uid);
   webUiBegin(ssid, SOFTAP_PASS);
   debugPrintf("SoftAP an: %s / %s @ 192.168.4.1\n", ssid, SOFTAP_PASS);
+}
+
+static void toggleSoftAp() {
+  setSoftAp(!webUiIsActive());
 }
 
 /** Debounced Short-Press (Loslassen) → SoftAP Toggle */
@@ -1062,6 +1270,81 @@ static void handleFrame(char *frame) {
     return;
   }
 
+  // --- Ruck-Überwachung: Fenster (s), Limit (Anzahl), Fehler, Zähler ---
+  if (strcmp(name, "SHOCKWIN") == 0) {
+    if (isGet) {
+      protoAckInt("GETSHOCKWIN", shockWinSec);
+      return;
+    }
+    if (!value) {
+      protoNack("SETSHOCKWIN");
+      return;
+    }
+    char *end = nullptr;
+    long v = strtol(value, &end, 10);
+    if (end == value || *end != '\0' || v < 1 || v > SHOCK_WIN_MAX_S) {
+      protoNack("SETSHOCKWIN");
+      return;
+    }
+    shockWinSec = (int)v;
+    saveConfig();
+    protoAckInt("SETSHOCKWIN", shockWinSec);
+    return;
+  }
+  if (strcmp(name, "SHOCKLIM") == 0) {
+    if (isGet) {
+      protoAckInt("GETSHOCKLIM", shockLimit);
+      return;
+    }
+    if (!value) {
+      protoNack("SETSHOCKLIM");
+      return;
+    }
+    char *end = nullptr;
+    long v = strtol(value, &end, 10);
+    if (end == value || *end != '\0' || v < 0 || v > SHOCK_LIMIT_MAX) {
+      protoNack("SETSHOCKLIM");
+      return;
+    }
+    shockLimit = (int)v;
+    saveConfig();
+    protoAckInt("SETSHOCKLIM", shockLimit);
+    return;
+  }
+  if (strcmp(name, "SHOCKCNT") == 0 && isGet) {
+    protoAckInt("GETSHOCKCNT", shockEventsInWindow());
+    return;
+  }
+  // --- GETWIFI / SETWIFI: SoftAP ein (1) / aus (0); Zustand nicht im NVS ---
+  if (strcmp(name, "WIFI") == 0) {
+    if (isGet) {
+      protoAckInt("GETWIFI", webUiIsActive() ? 1 : 0);
+      return;
+    }
+    bool v = false;
+    if (!value || !parseBool01(value, v)) {
+      protoNack("SETWIFI");
+      return;
+    }
+    setSoftAp(v);
+    protoAckInt("SETWIFI", webUiIsActive() ? 1 : 0);
+    return;
+  }
+  if (strcmp(name, "SHOCKERR") == 0) {
+    if (isGet) {
+      protoAckInt("GETSHOCKERR", g_shockErr ? 1 : 0);
+      return;
+    }
+    // Nur Löschen erlaubt: #SETSHOCKERR,0$
+    if (!value || strcmp(value, "0") != 0) {
+      protoNack("SETSHOCKERR");
+      return;
+    }
+    shockErrorClear();
+    protoAckInt("SETSHOCKERR", 0);
+    return;
+  }
+
   protoNack(frame);
 }
 
@@ -1173,14 +1456,29 @@ void setup() {
   Wire.setClock(100000);
   Wire.setTimeOut(200);
 
-  while (!initSensor()) {
-    g_errorActive = true;
-    digitalWrite(PIN_LBLED, HIGH);
-    Serial.println(F("Sensor-Init fehlgeschlagen – Retry"));
-    delay(2000);
+  // Nicht endlos in setup() warten: sonst wären RS485/SoftAP ohne Sensor tot.
+  // Bei Fehlschlag übernimmt der Sensor-Watchdog in loop() weitere Versuche.
+  bool sensorOk = false;
+  for (int attempt = 0; attempt < 3 && !sensorOk; attempt++) {
+    sensorOk = initSensor();
+    if (!sensorOk) {
+      g_errorActive = true;
+      digitalWrite(PIN_LBLED, HIGH);
+      Serial.println(F("Sensor-Init fehlgeschlagen – Retry"));
+      delay(500);
+    }
   }
-  g_errorActive = false;
+  g_lastSampleOkMs = millis();
+  if (sensorOk) {
+    g_errorActive = false;
+  } else {
+    g_sensorStale = true;
+    g_errorActive = true;
+    g_lastRecoverMs = millis();  // nächster Versuch in SENSOR_RECOVER_MS
+  }
   updateSettledFromInt2();
+  shockMonitorReset();
+  attachInterrupt(digitalPinToInterrupt(PIN_INT2), onInt2Fall, FALLING);
 
   char uid[16];
   deviceUid(uid, sizeof(uid));
@@ -1190,13 +1488,28 @@ void setup() {
 }
 
 void loop() {
-  if (fullScale1g != g_appliedFs1g) {
-    if (!applyFullScale()) {
-      g_errorActive = true;
+  sensorWatchdog();
+
+  if (!g_sensorStale) {
+    if (fullScale1g != g_appliedFs1g) {
+      applyFullScale();
+    }
+    if (shockThs != g_appliedShockThs) {
+      applyShockThreshold();
+    }
+  }
+
+  // Flüchtiger I2C-Fehler unter SoftAP: LED nicht dauerhaft „stecken“ lassen
+  if (g_errorActive) {
+    static uint32_t lastErrProbe = 0;
+    if (millis() - lastErrProbe >= 1000) {
+      lastErrProbe = millis();
+      clearErrorIfSensorOk();
     }
   }
 
   sampleElevation();
+  shockMonitorPoll();
 
   pollProtocol();
   pollButton();
@@ -1231,9 +1544,7 @@ void loop() {
 
   // Config-Mode: weiter blinken (kein Fehler)
   updateLbLed();
-  if (webUiIsActive()) {
-    yield();
-  } else {
-    delay(2);
-  }
+  // Immer blockierend abgeben: yield() lässt den IDLE-Task verhungern
+  // (Task-Watchdog / WLAN-Stack-Aushungern) – delay(1) = 1 Tick.
+  delay(webUiIsActive() ? 1 : 2);
 }

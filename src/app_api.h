@@ -14,6 +14,8 @@ extern int elevDecimals;
 extern bool fullScale1g;
 extern float filterAlpha;
 extern int shockThs;  // INT2 Wake-up-Schwelle 1…63 (Stoß/Mechanik)
+extern int shockWinSec;   // Ruck-Überwachung: Fenster in s (1…3600)
+extern int shockLimit;    // Rucke im Fenster bis Fehler (0 = aus, max 60)
 extern bool debugSerial;
 extern bool g_errorActive;
 extern char uiLang[4];  // "de" oder "en"
@@ -30,6 +32,12 @@ bool sampleElevation();
 void resetElevationFilter();
 /** INT2: true = stabil (kein Stoß über Schwelle), false = Ruck/Stoß. */
 bool isSettled();
+/** Anzahl Rucke im aktuellen Zeitfenster. */
+int shockEventsInWindow();
+/** Ruck-Fehler (Limit im Fenster erreicht), bleibt bis Löschen gesetzt. */
+bool shockErrorActive();
+/** Ruck-Fehler löschen und Zähler neu starten. */
+void shockErrorClear();
 void deviceUid(char *out, size_t outLen);  // z.B. "C3A1B2"
 
 /** 2-Punkt-Ebenkalibrierung (Rohwinkel ohne Offset). */

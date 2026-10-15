@@ -23,8 +23,8 @@ alwaysApply: true
 - GitHub: Artifacts immer; Release nur bei neuer Version (Tag `vX.Y.Z`)
 
 ## SoftAP
-- Ein: Taster GPIO0 (Kurzdruck)
-- Aus: erneut Taster, oder automatisch ca. 2,5 s nach Trennung des letzten WLAN-Clients
+- Ein: Taster GPIO0 (Kurzdruck) oder RS485 `#SETWIFI,1$` (Abfrage `#GETWIFI$`)
+- Aus: erneut Taster, RS485 `#SETWIFI,0$`, oder automatisch ca. 20 s nach Trennung des letzten WLAN-Clients
 - LED SoftAP: Doppelblink; normal: 500 ms; Fehler: dauerhaft an
 
 ## Build / Flash

@@ -16,8 +16,12 @@ static WebSocketsServer g_ws(81);
 static bool g_webActive = false;
 static bool g_wsStarted = false;
 static bool g_apHadClient = false;
+static bool g_routesReady = false;  // Routen nur einmal registrieren (sonst Heap-Leck pro AP-Start)
+static char g_ssidCache[40] = "";
+static char g_ipCache[20] = "192.168.4.1";
 static uint32_t g_apEmptySinceMs = 0;
-static constexpr uint32_t AP_IDLE_SHUTDOWN_MS = 2500;
+// Kurzzeitige WLAN-Aussetzer (Handy/Captive) nicht sofort als „letzter Client weg“ werten
+static constexpr uint32_t AP_IDLE_SHUTDOWN_MS = 20000;
 
 static const char *WEB_USER = "admin";
 static const char *WEB_PASS = "Rotorconfig";
@@ -61,15 +65,13 @@ static void handleStatus() {
   }
   char uid[16];
   deviceUid(uid, sizeof(uid));
-  String ssid = WiFi.softAPSSID();
-  String ip = WiFi.softAPIP().toString();
   char buf[448];
   snprintf(buf, sizeof(buf),
            "{\"uptime\":%lu,\"error\":%s,\"ssid\":\"%s\",\"ip\":\"%s\","
            "\"uid\":\"%s\",\"fw\":\"%s\",\"heap\":%u,"
            "\"elevation\":%.4f,\"decimals\":%d,\"debug\":%s,\"settled\":%s}",
            (unsigned long)(millis() / 1000UL), g_errorActive ? "true" : "false",
-           ssid.c_str(), ip.c_str(), uid, FW_VERSION, (unsigned)ESP.getFreeHeap(),
+           g_ssidCache, g_ipCache, uid, FW_VERSION, (unsigned)ESP.getFreeHeap(),
            (double)currentElevationOut(), elevDecimals,
            debugSerial ? "true" : "false", isSettled() ? "true" : "false");
   sendJson(200, buf);
@@ -80,45 +82,55 @@ static void fillLiveJson(char *buf, size_t buflen) {
   sampleElevation();
   char uid[16];
   deviceUid(uid, sizeof(uid));
-  String ssid = WiFi.softAPSSID();
-  String ip = WiFi.softAPIP().toString();
   snprintf(buf, buflen,
            "{\"elevation\":%.4f,\"decimals\":%d,\"error\":%s,\"ms\":%lu,"
            "\"heap\":%u,\"settled\":%s,\"uptime\":%lu,"
+           "\"shockErr\":%s,\"shockCnt\":%d,\"shockLim\":%d,\"shockWin\":%d,"
            "\"ssid\":\"%s\",\"ip\":\"%s\",\"uid\":\"%s\",\"fw\":\"%s\"}",
            (double)currentElevationOut(), elevDecimals,
            g_errorActive ? "true" : "false", (unsigned long)millis(),
            (unsigned)ESP.getFreeHeap(),
            isSettled() ? "true" : "false", (unsigned long)(millis() / 1000UL),
-           ssid.c_str(), ip.c_str(), uid, FW_VERSION);
+           shockErrorActive() ? "true" : "false", shockEventsInWindow(), shockLimit,
+           shockWinSec, g_ssidCache, g_ipCache, uid, FW_VERSION);
 }
 
 static void handleAngle() {
-  char buf[384];
+  char buf[448];
   fillLiveJson(buf, sizeof(buf));
   sendJson(200, buf);
 }
 
 /** Live-Poll: Winkel + Systeminfos für Statuskarte. */
 static void handleLive() {
-  char buf[384];
+  char buf[448];
   fillLiveJson(buf, sizeof(buf));
   sendJson(200, buf);
+}
+
+/** Ruck-Fehler per Web löschen. */
+static void handleShockClear() {
+  if (!checkAuth()) {
+    return;
+  }
+  shockErrorClear();
+  sendJson(200, "{\"ok\":true}");
 }
 
 static void handleGetConfig() {
   if (!checkAuth()) {
     return;
   }
-  char buf[448];
+  char buf[512];
   snprintf(buf, sizeof(buf),
            "{\"invertRotationDir\":%s,\"limit180\":%s,\"fullScale1g\":%s,"
            "\"debug\":%s,\"calib\":%.3f,\"mountRotation\":%d,\"filter\":%.3f,"
-           "\"shockThs\":%d,\"decimals\":%d,\"lang\":\"%s\"}",
+           "\"shockThs\":%d,\"shockWin\":%d,\"shockLim\":%d,"
+           "\"decimals\":%d,\"lang\":\"%s\"}",
            invertRotationDir ? "true" : "false",
            limitElevation0to180 ? "true" : "false", fullScale1g ? "true" : "false",
            debugSerial ? "true" : "false", (double)calibOffsetDeg, mountRotationDeg,
-           (double)filterAlpha, shockThs, elevDecimals, uiLang);
+           (double)filterAlpha, shockThs, shockWinSec, shockLimit, elevDecimals, uiLang);
   sendJson(200, buf);
 }
 
@@ -221,6 +233,22 @@ static void handlePostConfig() {
     }
     shockThs = s;
   }
+  if (jsonNumber(body, "shockWin", f)) {
+    int w = (int)lroundf(f);
+    if (w < 1 || w > 3600) {
+      sendJson(400, "{\"ok\":false,\"err\":\"shockWin\"}");
+      return;
+    }
+    shockWinSec = w;
+  }
+  if (jsonNumber(body, "shockLim", f)) {
+    int l = (int)lroundf(f);
+    if (l < 0 || l > 60) {
+      sendJson(400, "{\"ok\":false,\"err\":\"shockLim\"}");
+      return;
+    }
+    shockLimit = l;
+  }
   if (jsonNumber(body, "decimals", f)) {
     int d = (int)lroundf(f);
     if (d < 0 || d > 2) {
@@ -244,15 +272,14 @@ static void handlePostConfig() {
     }
   }
 
-  if (!applyFullScale()) {
-    sendJson(500, "{\"ok\":false,\"err\":\"fs\"}");
-    return;
-  }
-  if (!applyShockThreshold()) {
-    sendJson(500, "{\"ok\":false,\"err\":\"shockThs\"}");
-    return;
-  }
+  // NVS zuerst: Einstellungen bleiben auch bei flüchtigem I2C-Fehler unter SoftAP
   saveConfig();
+  const bool fsOk = applyFullScale();
+  const bool shockOk = applyShockThreshold();
+  if (!fsOk || !shockOk) {
+    sendJson(500, "{\"ok\":false,\"err\":\"sensor_busy\"}");
+    return;
+  }
   sendJson(200, "{\"ok\":true}");
 }
 
@@ -304,24 +331,57 @@ static void handleUpdateInfo() {
   sendJson(200, buf);
 }
 
+// esp_app_desc_t.magic_word: liegt in einem App-Image bei Offset 32
+// (24 B Image-Header + 8 B Segment-Header). factory.bin (Bootloader ab 0x0)
+// hat dort keine Magic → würde den App-Slot zerstören.
+static constexpr uint32_t APP_DESC_MAGIC = 0xABCD5432UL;
+static bool g_updReject = false;  // falsche Datei (z. B. factory.bin)
+static bool g_updFailed = false;
+
 static void handleUpdateUpload() {
   if (g_server == nullptr) {
     return;
   }
   HTTPUpload &upload = g_server->upload();
   if (upload.status == UPLOAD_FILE_START) {
+    g_updReject = false;
+    g_updFailed = false;
     size_t maxSketch = ESP.getFreeSketchSpace();
     if (!Update.begin(maxSketch)) {
       Update.printError(Serial);
+      g_updFailed = true;
     }
   } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (g_updReject || g_updFailed) {
+      return;
+    }
+    // Erster Chunk: nur echte App-Images (firmware.bin) zulassen
+    if (upload.totalSize == upload.currentSize) {
+      uint32_t magic = 0;
+      if (upload.currentSize >= 36) {
+        memcpy(&magic, upload.buf + 32, sizeof(magic));
+      }
+      if (upload.currentSize < 36 || upload.buf[0] != 0xE9 || magic != APP_DESC_MAGIC) {
+        g_updReject = true;
+        Update.abort();
+        return;
+      }
+    }
     if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
       Update.printError(Serial);
+      g_updFailed = true;
     }
   } else if (upload.status == UPLOAD_FILE_END) {
+    if (g_updReject || g_updFailed) {
+      return;
+    }
     if (!Update.end(true)) {
       Update.printError(Serial);
+      g_updFailed = true;
     }
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    Update.abort();
+    g_updFailed = true;
   }
 }
 
@@ -329,7 +389,11 @@ static void handleUpdateDone() {
   if (!checkAuth()) {
     return;
   }
-  if (Update.hasError()) {
+  if (g_updReject) {
+    sendJson(400, "{\"ok\":false,\"err\":\"not_app\"}");
+    return;
+  }
+  if (g_updFailed || Update.hasError()) {
     sendJson(500, "{\"ok\":false}");
     return;
   }
@@ -494,7 +558,7 @@ static void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t lengt
   (void)payload;
   (void)length;
   if (type == WStype_CONNECTED) {
-    char buf[384];
+    char buf[448];
     fillLiveJson(buf, sizeof(buf));
     g_ws.sendTXT(num, buf);
   }
@@ -518,6 +582,24 @@ void webUiBegin(const char *ssid, const char *password) {
   // Kanal 1, max. 2 Stationen (weniger TCP-Last)
   WiFi.softAP(ssid, password, 1, 0, 2);
 
+  // SSID/IP einmalig cachen (kein String-Alloc bei jedem 10-Hz-Live-Push)
+  strncpy(g_ssidCache, ssid, sizeof(g_ssidCache) - 1);
+  g_ssidCache[sizeof(g_ssidCache) - 1] = '\0';
+  snprintf(g_ipCache, sizeof(g_ipCache), "%s", WiFi.softAPIP().toString().c_str());
+
+  if (g_routesReady) {
+    // Routen bleiben nach stop()/begin() erhalten – nicht erneut anhängen
+    g_server->begin();
+    g_ws.begin();
+    g_ws.onEvent(onWsEvent);
+    g_ws.enableHeartbeat(10000, 3000, 2);
+    g_wsStarted = true;
+    g_apHadClient = false;
+    g_apEmptySinceMs = 0;
+    g_webActive = true;
+    return;
+  }
+
   g_server->on("/", HTTP_GET, handleRoot);
   g_server->on("/api/status", HTTP_GET, handleStatus);
   g_server->on("/api/live", HTTP_GET, handleLive);
@@ -539,6 +621,7 @@ void webUiBegin(const char *ssid, const char *password) {
   g_server->on("/api/calib/2", HTTP_POST, handleCalibCapture2);
   g_server->on("/api/calib/apply", HTTP_POST, handleCalibApply);
   g_server->on("/api/calib/clear", HTTP_POST, handleCalibClear);
+  g_server->on("/api/shock/clear", HTTP_POST, handleShockClear);
 
   // Captive-Portal-Probes (Android/iOS/Windows/…)
   g_server->on("/generate_204", HTTP_GET, handleCaptiveOk);
@@ -551,10 +634,13 @@ void webUiBegin(const char *ssid, const char *password) {
   g_server->on("/canonical.html", HTTP_GET, handleCaptiveHtml);
   g_server->onNotFound(handleNotFound);
 
+  g_routesReady = true;
   g_server->begin();
 
   g_ws.begin();
   g_ws.onEvent(onWsEvent);
+  // Tote Clients (Handy schläft/WLAN weg) zügig verwerfen statt in Sende-Timeouts zu laufen
+  g_ws.enableHeartbeat(10000, 3000, 2);
   g_wsStarted = true;
 
   g_apHadClient = false;
@@ -611,7 +697,17 @@ void webUiPushLive() {
   if (!g_webActive || !g_wsStarted) {
     return;
   }
-  char buf[384];
+  bool any = false;
+  for (uint8_t i = 0; i < WEBSOCKETS_SERVER_CLIENT_MAX; i++) {
+    if (g_ws.clientIsConnected(i)) {
+      any = true;
+      break;
+    }
+  }
+  if (!any) {
+    return;  // kein Client: kein I2C/JSON-Aufwand
+  }
+  char buf[448];
   fillLiveJson(buf, sizeof(buf));
   // Explizit an jeden Client (zuverlässiger als broadcast auf SoftAP)
   for (uint8_t i = 0; i < WEBSOCKETS_SERVER_CLIENT_MAX; i++) {

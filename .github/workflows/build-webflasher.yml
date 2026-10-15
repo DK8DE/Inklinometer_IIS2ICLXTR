@@ -139,19 +139,47 @@ jobs:
             fonts-dejavu-core libpango-1.0-0 libpangocairo-1.0-0 \
             libgdk-pixbuf-2.0-0 libffi8 shared-mime-info
           pip install -q weasyprint
-          for pair in "Anleitung_DE:Bedienungsanleitung (DE):de" "Manual_EN:User Manual (EN):en"; do
+          # Titel kommt aus der H1 der Markdown-Datei (kein --metadata title:
+          # En-Dash/UTF-8 in Shell-Args wurde in PDFs zu "???")
+          for pair in "Anleitung_DE:de" "Manual_EN:en"; do
             SRC="${pair%%:*}"
-            REST="${pair#*:}"
-            TITLE="${REST%%:*}"
-            LANG="${REST##*:}"
+            LANG="${pair#*:}"
             MD="docs/${SRC}.md"
             HTML="/tmp/${SRC}.html"
             PDF="$OUT_DIR/Inklinometer-${VERSION}-${SRC}.pdf"
             test -f "$MD"
             pandoc "$MD" -s -t html5 -o "$HTML" \
-              --metadata title="Inklinometer DK8DE IIS2ICLX – ${TITLE}" \
+              --from markdown \
               -V lang="$LANG"
-            python3 -c "from weasyprint import HTML; HTML(filename='${HTML}').write_pdf('${PDF}'); print('PDF:', '${PDF}')"
+            python3 - "$HTML" "$PDF" <<'PY'
+          import pathlib, sys
+          from weasyprint import HTML
+          html_path = pathlib.Path(sys.argv[1])
+          pdf_path = pathlib.Path(sys.argv[2])
+          text = html_path.read_text(encoding="utf-8")
+          if "charset" not in text.lower():
+              text = text.replace(
+                  "<head>",
+                  '<head>\n<meta charset="utf-8">',
+                  1,
+              )
+          # Leeres pandoc-<title> vermeiden: H1 als Dokumenttitel nutzen
+          import re
+          h1 = re.search(r"<h1[^>]*>(.*?)</h1>", text, re.I | re.S)
+          if h1:
+              plain = re.sub(r"<[^>]+>", "", h1.group(1))
+              plain = " ".join(plain.split())
+              text = re.sub(
+                  r"<title>.*?</title>",
+                  f"<title>{plain}</title>",
+                  text,
+                  count=1,
+                  flags=re.I | re.S,
+              )
+          html_path.write_text(text, encoding="utf-8")
+          HTML(filename=str(html_path), encoding="utf-8").write_pdf(str(pdf_path))
+          print("PDF:", pdf_path)
+          PY
           done
 
           rm -rf site

@@ -1,4 +1,4 @@
-# Inklinometer DK8DE IIS2ICLX – Setup and User Manual
+# Inklinometer DK8DE IIS2ICLX - Setup and User Manual
 
 **Firmware:** see [`src/version.h`](../src/version.h) or the Web UI status page  
 **Language:** English · Deutsch: [`Anleitung_DE.md`](Anleitung_DE.md)
@@ -93,7 +93,7 @@ The unit has a **push-button** (wired to GPIO0, active low to GND, with pull-up)
    - was off → SoftAP **on** (LBLED switches to double-blink pattern)
    - was on → SoftAP **off** (LBLED returns to normal blink)
 
-**SoftAP also turns off automatically** about **2.5 s** after the last Wi‑Fi client disconnects.
+**SoftAP also turns off automatically** about **20 s** after the last Wi‑Fi client disconnects.
 
 ### 3.2 At power-up – factory reset
 
@@ -125,27 +125,54 @@ After mounting, typically:
 
 ## 5. Flashing firmware
 
-Three common methods.
+### Which method for what?
 
-### 5.1 Web flasher (recommended for first install)
+| Goal | Recommended path |
+|------|------------------|
+| Just update firmware (device already running) | **SoftAP OTA** (section 5.1) – no cable to the PCB |
+| First install / recovery | Web flasher or PlatformIO via **Tag-Connect** (sections 5.2 / 5.3) |
+| Further development / debugging | Tag-Connect + PlatformIO (section 5.3) |
 
-1. Open a Chromium browser (Chrome/Edge).
-2. Go to:  
-   **https://dk8de.github.io/Inklinometer_IIS2ICLXTR/**
-3. Connect the device via **USB** (ESP32-C3 native USB).
-4. Choose **Install** / Connect and follow the dialog.
-5. `factory.bin` is written (bootloader + partition table + app from address `0x0`).
+> **Note:** For simply applying an update, use **SoftAP OTA**. The on-board USB/programming interface is intended for **development**, not for everyday end-user updates.
 
-Downloads on the same page:
+### 5.1 SoftAP OTA (recommended for updates)
+
+1. Enable SoftAP with the button (LBLED → double blink).
+2. Join Wi‑Fi `INKLINO-<UID>` (password in section 6).
+3. Open `http://192.168.4.1` and log in.
+4. Tab **Update** → upload `firmware.bin`.
+5. The device reboots after success.
+
+`firmware.bin` is included in the GitHub release / artifact for each version.
+
+### 5.2 On-board programming connector (development only)
+
+There is **no** end-user USB receptacle on the board. Instead:
+
+| Element | Location / description |
+|---------|------------------------|
+| **Tag-Connect (6-pin)** | Programming / USB-serial footprint **below the microcontroller (ESP32-C3)** |
+| **PROG** | Two **contact pads** to the **left** of the Tag-Connect – Boot/PROG |
+| **RESET** | Two more **pads** further **left** – hardware reset |
+
+Flashing by cable requires a matching **6-pin Tag-Connect plug** (and typically a USB adapter/programmer). PROG and RESET pads can be jumpered or touched with a probe when needed (hold BOOT → pulse Reset → release BOOT).
+
+This path is **only recommended** if you want to **develop** the firmware or reflash the board from scratch – **not** for simply installing an update.
+
+Downloads (web flasher / release):
 
 | File | Use |
 |------|-----|
-| `factory.bin` | Full flash / first install / recovery |
+| `factory.bin` | Full flash / first install / recovery (from address `0x0`) |
 | `firmware.bin` | App only – SoftAP OTA (web tab **Update**) |
 
-### 5.2 PlatformIO (development)
+Web flasher (Chrome/Edge):  
+**https://dk8de.github.io/Inklinometer_IIS2ICLXTR/**  
+Install `factory.bin` there via the Tag-Connect USB adapter.
 
-In the project directory:
+### 5.3 PlatformIO (development)
+
+Requirement: Tag-Connect adapter connected (see 5.2). In the project directory:
 
 ```bash
 # Linux / macOS / Git Bash
@@ -172,15 +199,7 @@ After changing the partition table, once:
 pio run -e esp32-c3 -t erase -t upload
 ```
 
-**USB-C3 note:** Close the serial monitor during upload. On boot-loop, hold BOOT → Reset → release BOOT.
-
-### 5.3 SoftAP OTA (app update only)
-
-1. Enable SoftAP with the button.
-2. Join Wi‑Fi `INKLINO-<UID>` (password below).
-3. Open `http://192.168.4.1` and log in.
-4. Tab **Update** → upload `firmware.bin`.
-5. The device reboots after success.
+**Note:** Close the serial monitor during upload. On boot-loop: short PROG pads (BOOT) → pulse RESET → release PROG.
 
 ---
 
@@ -190,7 +209,7 @@ pio run -e esp32-c3 -t erase -t upload
 
 | | |
 |--|--|
-| Start SoftAP | Short button press (LBLED → double blink) |
+| Start SoftAP | Short button press (LBLED → double blink) or via RS485 `#SETWIFI,1$` |
 | SSID | `INKLINO-<UID>` (UID = last 3 MAC bytes, hex) |
 | Wi‑Fi password | `Rotorconfig` |
 | Web UI URL | `http://192.168.4.1` |
@@ -306,6 +325,57 @@ Every **successful SET** stores configuration in flash (NVS namespace `incl`). V
 
 ---
 
+### 8.1a Jolt monitoring (error on too many jolts)
+
+At runtime the firmware counts every **jolt** (INT2 changes from “stable” to “jolt”; sensitivity is set by `SHOCKTHS`). If at least a configurable **number** of jolts occur within a configurable **time window**, a **jolt error** is set. The window is *sliding* (always the last `SHOCKWIN` seconds).
+
+The error:
+
+- stays set until it is **cleared** (RS485 or web),
+- is **not** stored in flash (cleared by reboot / power loss),
+- does **not** affect the **LBLED** (which only shows sensor faults).
+
+`SHOCKWIN` and `SHOCKLIM` are stored in NVS.
+
+#### `GETSHOCKWIN` / `SETSHOCKWIN` – time window
+
+- **Read:** `#GETSHOCKWIN$` · **Write:** `#SETSHOCKWIN,<1…3600>$`
+- Unit: **seconds**. Default: `60`.
+
+#### `GETSHOCKLIM` / `SETSHOCKLIM` – jolts until error
+
+- **Read:** `#GETSHOCKLIM$` · **Write:** `#SETSHOCKLIM,<0…60>$`
+- Number of jolts within the window that sets the error. **`0` = monitoring off.** Default: `5`.
+
+#### `GETSHOCKCNT` – jolts in current window
+
+- **Format:** `#GETSHOCKCNT$` → `#ACK_GETSHOCKCNT,<n>$`
+- Read only; number of jolts within the last `SHOCKWIN` seconds.
+
+#### `GETSHOCKERR` / `SETSHOCKERR` – query / clear jolt error
+
+- **Query:** `#GETSHOCKERR$` → `#ACK_GETSHOCKERR,1$` (error active) or `,0$`
+- **Clear:** `#SETSHOCKERR,0$` → `#ACK_SETSHOCKERR,0$`  
+  (other values → `#NACK_SETSHOCKERR,ERR$`; the error can only be cleared, not set by command)
+- Clearing restarts the jolt counter.
+
+Example:
+
+```text
+#SETSHOCKWIN,30$
+#ACK_SETSHOCKWIN,30$
+#SETSHOCKLIM,3$
+#ACK_SETSHOCKLIM,3$
+#GETSHOCKERR$
+#ACK_GETSHOCKERR,1$
+#SETSHOCKERR,0$
+#ACK_SETSHOCKERR,0$
+```
+
+The web UI (tab **Status**) shows “Jolts in window” and “Jolt error”; with an active error the **Clear jolt error** button appears. Window and count are set in the **Configuration** tab.
+
+---
+
 ### 8.2 Angle presentation and filter
 
 #### `GETELEVDEC` / `SETELEVDEC` – decimal places
@@ -370,6 +440,29 @@ Every **successful SET** stores configuration in flash (NVS namespace `incl`). V
 
 ### 8.3 Diagnostics
 
+#### `GETWIFI` / `SETWIFI` – query / switch Wi‑Fi (SoftAP) on and off
+
+- **Query:** `#GETWIFI$` → `#ACK_GETWIFI,1$` (SoftAP on) or `,0$` (off)
+- **Switch on:** `#SETWIFI,1$` → `#ACK_SETWIFI,1$`
+- **Switch off:** `#SETWIFI,0$` → `#ACK_SETWIFI,0$`
+- Works like the **GPIO0** button, but explicit: `1` only starts the SoftAP if it is off; `0` only stops it if it is on (no toggling). Repeated commands are therefore harmless.
+- The reply contains the **actual** state after the command.
+- Other values → `#NACK_SETWIFI,ERR$`.
+- **Switching off** disconnects connected clients immediately.
+- The state is **not** stored in NVS: after a restart Wi‑Fi is always off. The automatic shutdown (about 20 s after the last client disconnects) also applies to a SoftAP started via RS485.
+- Credentials and address are unchanged: SSID `INKLINO-<UID>`, password `Rotorconfig`, `http://192.168.4.1`.
+
+Example:
+
+```text
+#GETWIFI$
+#ACK_GETWIFI,0$
+#SETWIFI,1$
+#ACK_SETWIFI,1$
+#SETWIFI,0$
+#ACK_SETWIFI,0$
+```
+
 #### `GETDEBUG` / `SETDEBUG` – USB debug
 
 - `1` = print elevation ~10×/s on USB-CDC (115200 baud)
@@ -386,6 +479,10 @@ Every **successful SET** stores configuration in flash (NVS namespace `incl`). V
 | Stable (no shock) | `GETSETTLED` | — | 0 / 1 |
 | Shock detected | `GETSHOCK` | — | 0 / 1 |
 | Shock threshold | `GETSHOCKTHS` | `SETSHOCKTHS` | 1…63 (default 25) |
+| Jolt window (s) | `GETSHOCKWIN` | `SETSHOCKWIN` | 1…3600 (default 60) |
+| Jolts until error | `GETSHOCKLIM` | `SETSHOCKLIM` | 0…60, 0 = off (default 5) |
+| Jolts in window | `GETSHOCKCNT` | — | count |
+| Jolt error | `GETSHOCKERR` | `SETSHOCKERR,0` (clear) | 0 / 1 |
 | Swap axes | `GETSWAPXY` | `SETSWAPXY` | 0 / 1 |
 | Invert REF | `GETINVREF` | `SETINVREF` | 0 / 1 |
 | Invert SENSE | `GETINVSENS` | `SETINVSENS` | 0 / 1 |
@@ -396,6 +493,7 @@ Every **successful SET** stores configuration in flash (NVS namespace `incl`). V
 | Full-scale ±1 g | `GETFS1G` | `SETFS1G` | 0 / 1 |
 | Decimal places | `GETELEVDEC` | `SETELEVDEC` | 0 / 1 / 2 |
 | Filter α | `GETFILTER` | `SETFILTER` | 0.01…1.0 |
+| Wi‑Fi (SoftAP) | `GETWIFI` | `SETWIFI` | 0 / 1 |
 | USB debug | `GETDEBUG` | `SETDEBUG` | 0 / 1 |
 
 ---
@@ -440,6 +538,8 @@ After factory reset (button at boot or web Reset tab):
 | `FS1G` | 1 (±1 g) |
 | `FILTER` | 0.15 |
 | `SHOCKTHS` | 25 |
+| `SHOCKWIN` | 60 s |
+| `SHOCKLIM` | 5 |
 | `DEBUG` | 0 |
 | UI language | de |
 
@@ -453,10 +553,11 @@ After factory reset (button at boot or web Reset tab):
 | No RS485 reply | A/B swapped, baud rate, common ground, termination |
 | RX LED blinks, no TX LED | Invalid frame (missing `#`/`$`, line break) |
 | SoftAP not visible | Short button press; check LBLED double-blink |
-| SoftAP disappears alone | Normal: ~2.5 s after last client disconnects |
+| SoftAP disappears alone | Normal: ~20 s after last client disconnects |
 | Badge stays “stable” during slow motion | Expected – jolts only; lower threshold if needed |
 | Wrong angle after power cycle | Check mounting/calibration/`MOUNTROT` |
-| USB upload fails | Close monitor; try BOOT mode |
+| SoftAP OTA fails | SoftAP on? File is `firmware.bin` (not factory)? |
+| Tag-Connect flash fails | Adapter seated? PROG/RESET pads (BOOT mode)? Monitor closed? |
 
 ---
 

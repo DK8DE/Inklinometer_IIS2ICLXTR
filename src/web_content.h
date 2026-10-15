@@ -228,10 +228,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
       <div class="grid">
         <div class="kv"><div class="k" data-i18n="k_uptime">Uptime</div><div class="v mono" id="uptime">—</div></div>
         <div class="kv"><div class="k" data-i18n="k_error">Error</div><div class="v mono" id="errFlag">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_shockcnt">Jolts in window</div><div class="v mono" id="shockCnt">—</div></div>
+        <div class="kv"><div class="k" data-i18n="k_shockerr">Jolt error</div><div class="v mono" id="shockErr">—</div></div>
         <div class="kv"><div class="k">SoftAP</div><div class="v mono" id="apInfo">—</div></div>
         <div class="kv"><div class="k">UID</div><div class="v mono" id="uid">—</div></div>
         <div class="kv"><div class="k" data-i18n="k_fw">Firmware</div><div class="v mono" id="fwVer">—</div></div>
         <div class="kv"><div class="k" data-i18n="k_heap">Free Heap</div><div class="v mono" id="heap">—</div></div>
+      </div>
+      <div class="actions" style="margin-top:.85rem">
+        <button class="btn sec" id="btnShockClear" data-i18n="btn_shock_clear" hidden>Clear jolt error</button>
       </div>
     </div>
   </section>
@@ -264,6 +269,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue)}
         <div class="field">
           <label for="shockThs" data-i18n="lbl_shock">Shock threshold (1…63)</label>
           <input type="number" id="shockThs" step="1" min="1" max="63">
+        </div>
+      </div>
+      <div class="formgrid">
+        <div class="field">
+          <label for="shockWin" data-i18n="lbl_shockwin">Jolt window (s)</label>
+          <input type="number" id="shockWin" step="1" min="1" max="3600">
+        </div>
+        <div class="field">
+          <label for="shockLim" data-i18n="lbl_shocklim">Jolts for error (0 = off)</label>
+          <input type="number" id="shockLim" step="1" min="0" max="60">
         </div>
       </div>
       <div class="muted" style="margin:.35rem 0 .75rem" data-i18n="hint_shock">INT2 detects jolts/impacts, not slow angle changes.</div>
@@ -363,6 +378,10 @@ de:{
   tab_update:'Update', tab_reset:'Reset',
   h_elevation:'Elevation', elev_hint:'Live aus Sensor (FIFO-Mittelung)',
   k_uptime:'Uptime', k_error:'Fehler', k_settled:'Mechanik',
+  k_shockcnt:'Rucke im Fenster', k_shockerr:'Ruck-Fehler',
+  shock_ok:'OK', shock_err:'FEHLER', shock_off:'aus',
+  btn_shock_clear:'Ruck-Fehler löschen', toast_shock_clear:'Ruck-Fehler gelöscht', toast_shock_clear_fail:'Löschen fehlgeschlagen',
+  lbl_shockwin:'Ruck-Fenster (s)', lbl_shocklim:'Rucke bis Fehler (0 = aus)',
   h_system:'System', k_fw:'Firmware', k_heap:'Free Heap',
   lbl_debug_usb:'Debug über USB',
   dbg_on:'Ein: Elevation ca. 10×/s auf USB-CDC (115200 Baud).',
@@ -419,6 +438,10 @@ en:{
   tab_update:'Update', tab_reset:'Reset',
   h_elevation:'Elevation', elev_hint:'Live from sensor (FIFO average)',
   k_uptime:'Uptime', k_error:'Error', k_settled:'Mechanics',
+  k_shockcnt:'Jolts in window', k_shockerr:'Jolt error',
+  shock_ok:'OK', shock_err:'ERROR', shock_off:'off',
+  btn_shock_clear:'Clear jolt error', toast_shock_clear:'Jolt error cleared', toast_shock_clear_fail:'Clear failed',
+  lbl_shockwin:'Jolt window (s)', lbl_shocklim:'Jolts for error (0 = off)',
   h_system:'System', k_fw:'Firmware', k_heap:'Free Heap',
   lbl_debug_usb:'Debug via USB',
   dbg_on:'On: elevation ~10×/s on USB-CDC (115200 baud).',
@@ -482,6 +505,7 @@ function applyLang(next){
   });
   setDebugUi($('debugSerial')?$('debugSerial').checked:false);
   if(lastSettled!=null) applySettled(lastSettled);
+  if(lastShock) applyShock({shockErr:lastShock.err, shockCnt:lastShock.cnt, shockLim:lastShock.lim, shockWin:lastShock.win});
   if(ws && ws.readyState===1) setConn('live');
 }
 async function setLang(next){
@@ -508,10 +532,13 @@ async function api(path, opts){
   const base = {credentials:'same-origin', cache:'no-store', headers:{'Accept':'application/json'}};
   const o = opts || {};
   const headers = Object.assign({}, base.headers, o.headers||{});
+  const timeoutMs = (o && o.timeoutMs!=null) ? o.timeoutMs : 8000;
   const ctrl = new AbortController();
-  const timer = setTimeout(()=>ctrl.abort(), 2500);
+  const timer = setTimeout(()=>ctrl.abort(), timeoutMs);
+  const fetchOpts = Object.assign({}, base, o, {headers, signal:ctrl.signal});
+  delete fetchOpts.timeoutMs;
   try{
-    const r = await fetch(url, Object.assign({}, base, o, {headers, signal:ctrl.signal}));
+    const r = await fetch(url, fetchOpts);
     if(r.status===401) throw new Error(t('auth_required'));
     if(!r.ok) throw new Error('HTTP '+r.status);
     const ct = r.headers.get('content-type')||'';
@@ -520,6 +547,10 @@ async function api(path, opts){
   }finally{
     clearTimeout(timer);
   }
+}
+function numOr(v, fallback){
+  const n = Number(v);
+  return (v==null || v==='' || !isFinite(n)) ? fallback : n;
 }
 function setNavOpen(open){
   const wrap=$('navWrap');
@@ -606,8 +637,25 @@ function applySettled(v){
     b.className = 'tag ' + (settled ? 'ok' : 'warn');
   }
 }
+let lastShock = null;
+function applyShock(a){
+  if(a.shockErr==null) return;
+  lastShock = {err:!!a.shockErr, cnt:a.shockCnt, lim:a.shockLim, win:a.shockWin};
+  const c = $('shockCnt'), e = $('shockErr'), b = $('btnShockClear');
+  if(c){
+    c.textContent = (lastShock.lim>0)
+      ? (lastShock.cnt+' / '+lastShock.lim+' ('+lastShock.win+' s)')
+      : (lastShock.cnt+' ('+t('shock_off')+')');
+  }
+  if(e){
+    e.textContent = lastShock.err ? t('shock_err') : t('shock_ok');
+    e.style.color = lastShock.err ? 'var(--err)' : '';
+  }
+  if(b) b.hidden = !lastShock.err;
+}
 function applyLive(a){
   setElevation(a);
+  applyShock(a);
   if(a.error!=null){
     $('errFlag').textContent = a.error ? '1' : '0';
   }
@@ -666,17 +714,24 @@ async function refreshStatus(){
   }
 }
 function fillCfg(c){
+  if(!c || typeof c!=='object') return;
   if($('mountRotation')) $('mountRotation').value = String(c.mountRotation!=null?c.mountRotation:0);
   $('invertRotationDir').checked=!!c.invertRotationDir;
   $('limit180').checked=!!c.limit180;
   $('fullScale1g').checked=!!c.fullScale1g;
   $('debugSerial').checked=!!c.debug;
   setDebugUi(!!c.debug);
-  $('calib').value = Number(c.calib).toFixed(2);
-  $('filter').value = Number(c.filter).toFixed(2);
-  if($('shockThs')) $('shockThs').value = String(c.shockThs!=null?c.shockThs:25);
-  $('decimals').value = String(c.decimals);
-  if($('calCur')) $('calCur').textContent = Number(c.calib).toFixed(2)+'\u00B0';
+  const calib = numOr(c.calib, 0);
+  const filt = numOr(c.filter, 0.15);
+  const shock = numOr(c.shockThs, 25);
+  const dec = numOr(c.decimals, 2);
+  $('calib').value = calib.toFixed(2);
+  $('filter').value = filt.toFixed(2);
+  if($('shockThs')) $('shockThs').value = String(Math.round(shock));
+  if($('shockWin')) $('shockWin').value = String(Math.round(numOr(c.shockWin, 60)));
+  if($('shockLim')) $('shockLim').value = String(Math.round(numOr(c.shockLim, 5)));
+  $('decimals').value = String(Math.round(dec));
+  if($('calCur')) $('calCur').textContent = calib.toFixed(2)+'\u00B0';
   if(c.lang) applyLang(c.lang);
 }
 let pendingCalOffset = null;
@@ -745,25 +800,44 @@ function bindCalibUi(){
 }
 bindCalibUi();
 async function loadCfg(){
-  const c = await api('/api/config');
-  fillCfg(c);
+  let lastErr = null;
+  for(let i=0;i<5;i++){
+    try{
+      const c = await api('/api/config',{timeoutMs:10000});
+      if(c && typeof c==='object' && (c.calib!=null || c.filter!=null || c.shockThs!=null)){
+        fillCfg(c);
+        return c;
+      }
+      lastErr = new Error('incomplete');
+    }catch(e){ lastErr = e; }
+    await new Promise(r=>setTimeout(r, 400));
+  }
+  throw lastErr || new Error('cfg');
 }
 $('btnReloadCfg').onclick = ()=>loadCfg().then(()=>toast(t('toast_cfg_loaded'))).catch(()=>toast(t('toast_cfg_fail'),false));
 $('btnSaveCfg').onclick = async ()=>{
+  const calib = parseFloat($('calib').value);
+  const filter = parseFloat($('filter').value);
+  const shockThs = parseInt($('shockThs').value,10);
+  const shockWin = parseInt($('shockWin').value,10);
+  const shockLim = parseInt($('shockLim').value,10);
+  const decimals = parseInt($('decimals').value,10);
+  if(!isFinite(calib) || !isFinite(filter) || !isFinite(shockThs) || !isFinite(decimals)
+     || !isFinite(shockWin) || !isFinite(shockLim)){
+    toast(t('toast_cfg_fail'), false);
+    return;
+  }
   const body = {
     mountRotation: parseInt($('mountRotation').value,10),
     invertRotationDir: $('invertRotationDir').checked,
     limit180: $('limit180').checked,
     fullScale1g: $('fullScale1g').checked,
     debug: $('debugSerial').checked,
-    calib: parseFloat($('calib').value),
-    filter: parseFloat($('filter').value),
-    shockThs: parseInt($('shockThs').value,10),
-    decimals: parseInt($('decimals').value,10),
+    calib, filter, shockThs, shockWin, shockLim, decimals,
     lang: lang
   };
   try{
-    await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),timeoutMs:12000});
     toast(t('toast_saved'));
     await loadCfg();
   }catch(e){ toast(t('toast_save_fail'), false); }
@@ -806,6 +880,15 @@ $('btnUpload').onclick = async ()=>{
     $('btnUpload').disabled=false;
   }
 };
+if($('btnShockClear')){
+  $('btnShockClear').onclick = async ()=>{
+    try{
+      await api('/api/shock/clear',{method:'POST'});
+      toast(t('toast_shock_clear'));
+      refreshLive();
+    }catch(e){ toast(t('toast_shock_clear_fail'), false); }
+  };
+}
 $('btnReboot').onclick = ()=>{
   api('/api/reboot',{method:'POST'}).then(()=>toast(t('toast_reboot'))).catch(()=>toast(t('toast_reboot')));
 };
@@ -829,7 +912,12 @@ refreshStatus();
     if($('uid') && $('uid').textContent && $('uid').textContent!=='—') break;
   }
 })();
-setInterval(refreshLive, 100);
+// Live kommt per WebSocket (10 Hz). HTTP-Polling nur als Fallback, dann gedrosselt –
+// sonst belegt es den (single-threaded) Webserver doppelt.
+setInterval(()=>{
+  if(ws && ws.readyState===1) return;
+  refreshLive();
+}, 500);
 setInterval(refreshStatus, 5000);
 </script>
 </body>

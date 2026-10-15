@@ -1,4 +1,4 @@
-# Inklinometer DK8DE IIS2ICLX – Bedienungs- und Einrichtungsanleitung
+# Inklinometer DK8DE IIS2ICLX - Bedienungs- und Einrichtungsanleitung
 
 **Firmware:** siehe [`src/version.h`](../src/version.h) bzw. Anzeige in der Web-UI  
 **Sprache:** Deutsch · English: [`Manual_EN.md`](Manual_EN.md)
@@ -93,7 +93,7 @@ Am Gerät befindet sich ein **Taster** (intern mit GPIO0 verbunden, gegen GND, m
    - war aus → SoftAP **ein** (LBLED wechselt auf Doppelblink-Muster)
    - war an → SoftAP **aus** (LBLED wieder Normalblinken)
 
-**Zusätzlich schaltet SoftAP automatisch aus**, wenn der letzte WLAN-Client getrennt wurde und ca. **2,5 s** lang kein Client mehr verbunden ist.
+**Zusätzlich schaltet SoftAP automatisch aus**, wenn der letzte WLAN-Client getrennt wurde und ca. **20 s** lang kein Client mehr verbunden ist.
 
 ### 3.2 Beim Einschalten – Werkseinstellung (Factory Reset)
 
@@ -125,27 +125,54 @@ Nach der Montage typischerweise:
 
 ## 5. Firmware flashen
 
-Es gibt drei übliche Wege.
+### Welche Methode wofür?
 
-### 5.1 Webflasher (empfohlen für Erstinstallation)
+| Ziel | Empfohlener Weg |
+|------|-----------------|
+| Nur Firmware aktualisieren (Gerät läuft schon) | **SoftAP-OTA** (Abschnitt 5.1) – ohne Kabel an die Platine |
+| Erstinstallation / Recovery | Webflasher oder PlatformIO über **Tag-Connect** (Abschnitt 5.2 / 5.3) |
+| Weiterentwickeln / Debuggen | Tag-Connect + PlatformIO (Abschnitt 5.3) |
 
-1. Chromium-Browser (Chrome/Edge) öffnen.
-2. Seite öffnen:  
-   **https://dk8de.github.io/Inklinometer_IIS2ICLXTR/**
-3. Gerät per **USB** (ESP32-C3 native USB) verbinden.
-4. **Installieren** / Connect wählen und Anweisungen im Dialog folgen.
-5. Es wird `factory.bin` geschrieben (Bootloader + Partitionstabelle + App ab Adresse `0x0`).
+> **Hinweis:** Ein Update nur „einzuspielen“ sollte über **SoftAP-OTA** erfolgen. Der USB-/Programmieranschluss auf der Platine ist für **Entwicklung** gedacht, nicht für den normalen Anwender-Alltag.
 
-Downloads auf derselben Seite:
+### 5.1 OTA über SoftAP (empfohlen für Updates)
+
+1. SoftAP per Taster einschalten (LBLED → Doppelblink).
+2. Mit dem WLAN `INKLINO-<UID>` verbinden (Passwort siehe Abschnitt 6).
+3. Im Browser `http://192.168.4.1` öffnen, anmelden.
+4. Tab **Update** → Datei `firmware.bin` hochladen.
+5. Nach Erfolg startet das Gerät neu.
+
+`firmware.bin` liegt im GitHub-Release bzw. Artifact zur jeweiligen Version.
+
+### 5.2 Programmieranschluss auf der Platine (nur Entwicklung)
+
+Auf der Platine gibt es **keinen** normalen USB-Buchsenanschluss für Endanwender. Stattdessen:
+
+| Element | Lage / Beschreibung |
+|---------|---------------------|
+| **Tag-Connect (6 Pole)** | Programmier-/USB-Serial-Anschluss **unterhalb des Mikrocontrollers (ESP32-C3)** |
+| **PROG** | Zwei **Kontaktflächen (Pads)** **links** neben dem Tag-Connect – entsprechen dem Boot/PROG-Taster |
+| **RESET** | Zwei weitere **Pads** **weiter links** daneben – Hardware-Reset |
+
+Zum Flashen per Kabel braucht man einen passenden **Tag-Connect-Stecker mit 6 Polen** (und typischerweise einen USB-Adapter/Programmer). PROG- und RESET-Pads können bei Bedarf gebrückt bzw. mit einer Nadel/Pinzette betätigt werden (BOOT halten → Reset → BOOT loslassen).
+
+Dieser Weg ist **nur empfohlen**, wenn man die Firmware **weiterentwickeln** oder die Platine neu flashen muss – **nicht**, um lediglich ein Update einzuspielen.
+
+Downloads (Webflasher / Release):
 
 | Datei | Verwendung |
 |-------|------------|
-| `factory.bin` | Komplettflash / Erstinstallation / Recovery |
-| `firmware.bin` | nur App – für SoftAP-OTA (Web-Tab **Update**) |
+| `factory.bin` | Komplettflash / Erstinstallation / Recovery (ab Adresse `0x0`) |
+| `firmware.bin` | nur App – SoftAP-OTA (Web-Tab **Update**) |
 
-### 5.2 PlatformIO (Entwicklung)
+Webflasher (Chrome/Edge):  
+**https://dk8de.github.io/Inklinometer_IIS2ICLXTR/**  
+Dort `factory.bin` über den Tag-Connect-USB-Adapter installieren.
 
-Im Projektverzeichnis:
+### 5.3 PlatformIO (Entwicklung)
+
+Voraussetzung: Tag-Connect-Adapter verbunden (siehe 5.2). Im Projektverzeichnis:
 
 ```bash
 # Linux / macOS / Git Bash
@@ -172,15 +199,7 @@ Nach Änderung der Partitionstabelle einmalig:
 pio run -e esp32-c3 -t erase -t upload
 ```
 
-**Hinweis USB-C3:** Monitor während des Uploads schließen. Bei Boot-Loop ggf. BOOT halten → Reset → BOOT loslassen.
-
-### 5.3 OTA über SoftAP (nur App-Update)
-
-1. SoftAP per Taster einschalten.
-2. Mit dem WLAN `INKLINO-<UID>` verbinden (Passwort siehe unten).
-3. Im Browser `http://192.168.4.1` öffnen, anmelden.
-4. Tab **Update** → `firmware.bin` hochladen.
-5. Nach Erfolg startet das Gerät neu.
+**Hinweis:** Serial-Monitor während des Uploads schließen. Bei Boot-Loop: PROG-Pads verbinden (BOOT) → RESET tippen → PROG lösen.
 
 ---
 
@@ -190,7 +209,7 @@ pio run -e esp32-c3 -t erase -t upload
 
 | | |
 |--|--|
-| SoftAP starten | Taster kurz drücken (LBLED → Doppelblink) |
+| SoftAP starten | Taster kurz drücken (LBLED → Doppelblink) oder per RS485 `#SETWIFI,1$` |
 | SSID | `INKLINO-<UID>` (UID = letzte 3 Bytes der MAC, hex) |
 | WLAN-Passwort | `Rotorconfig` |
 | IP der Web-UI | `http://192.168.4.1` |
@@ -306,6 +325,57 @@ Jeder **erfolgreiche SET**-Befehl speichert die Konfiguration im Flash (NVS-Name
 
 ---
 
+### 8.1a Ruck-Überwachung (Fehler bei zu vielen Rucken)
+
+Zur Laufzeit zählt die Firmware jeden **Ruck** (INT2 wechselt von „stabil“ auf „Ruck“; die Empfindlichkeit bestimmt `SHOCKTHS`). Treten in einem einstellbaren **Zeitfenster** mindestens eine einstellbare **Anzahl** Rucke auf, wird ein **Ruck-Fehler** gesetzt. Das Fenster ist *gleitend* (immer die letzten `SHOCKWIN` Sekunden).
+
+Der Fehler:
+
+- bleibt gesetzt, bis er **gelöscht** wird (RS485 oder Web),
+- wird **nicht** im Flash gespeichert (nach Neustart/Spannungsausfall gelöscht),
+- beeinflusst die **LBLED nicht** (die zeigt nur Sensor-Fehler).
+
+Die Einstellungen `SHOCKWIN` und `SHOCKLIM` werden im NVS gespeichert.
+
+#### `GETSHOCKWIN` / `SETSHOCKWIN` – Zeitfenster
+
+- **Lesen:** `#GETSHOCKWIN$` · **Schreiben:** `#SETSHOCKWIN,<1…3600>$`
+- Einheit: **Sekunden**. Default: `60`.
+
+#### `GETSHOCKLIM` / `SETSHOCKLIM` – Rucke bis Fehler
+
+- **Lesen:** `#GETSHOCKLIM$` · **Schreiben:** `#SETSHOCKLIM,<0…60>$`
+- Anzahl Rucke im Fenster, ab der der Fehler gesetzt wird. **`0` = Überwachung aus.** Default: `5`.
+
+#### `GETSHOCKCNT` – Rucke im aktuellen Fenster
+
+- **Format:** `#GETSHOCKCNT$` → `#ACK_GETSHOCKCNT,<n>$`
+- Nur Lesen; Anzahl der Rucke innerhalb der letzten `SHOCKWIN` Sekunden.
+
+#### `GETSHOCKERR` / `SETSHOCKERR` – Ruck-Fehler abfragen / löschen
+
+- **Abfragen:** `#GETSHOCKERR$` → `#ACK_GETSHOCKERR,1$` (Fehler aktiv) oder `,0$`
+- **Löschen:** `#SETSHOCKERR,0$` → `#ACK_SETSHOCKERR,0$`  
+  (andere Werte → `#NACK_SETSHOCKERR,ERR$`; ein Fehler kann nur gelöscht, nicht per Befehl gesetzt werden)
+- Beim Löschen startet der Ruck-Zähler neu.
+
+Beispiel:
+
+```text
+#SETSHOCKWIN,30$
+#ACK_SETSHOCKWIN,30$
+#SETSHOCKLIM,3$
+#ACK_SETSHOCKLIM,3$
+#GETSHOCKERR$
+#ACK_GETSHOCKERR,1$
+#SETSHOCKERR,0$
+#ACK_SETSHOCKERR,0$
+```
+
+In der Web-UI (Tab **Status**) werden „Rucke im Fenster“ und „Ruck-Fehler“ angezeigt; bei aktivem Fehler erscheint der Button **Ruck-Fehler löschen**. Fenster und Anzahl stehen im Tab **Konfiguration**.
+
+---
+
 ### 8.2 Winkel-Darstellung und Filter
 
 #### `GETELEVDEC` / `SETELEVDEC` – Nachkommastellen
@@ -370,6 +440,29 @@ Jeder **erfolgreiche SET**-Befehl speichert die Konfiguration im Flash (NVS-Name
 
 ### 8.3 Diagnose
 
+#### `GETWIFI` / `SETWIFI` – WLAN (SoftAP) abfragen / ein- und ausschalten
+
+- **Abfragen:** `#GETWIFI$` → `#ACK_GETWIFI,1$` (SoftAP an) oder `,0$` (aus)
+- **Einschalten:** `#SETWIFI,1$` → `#ACK_SETWIFI,1$`
+- **Ausschalten:** `#SETWIFI,0$` → `#ACK_SETWIFI,0$`
+- Wirkt wie der Taster **GPIO0**, aber gezielt: `1` startet den SoftAP nur, wenn er aus ist; `0` beendet ihn nur, wenn er an ist (kein Umschalten). Wiederholte Befehle sind daher unschädlich.
+- Die Antwort enthält den **tatsächlichen** Zustand nach dem Befehl.
+- Andere Werte → `#NACK_SETWIFI,ERR$`.
+- Beim **Ausschalten** werden verbundene Clients sofort getrennt.
+- Der Zustand wird **nicht** im NVS gespeichert: nach Neustart ist das WLAN immer aus. Die automatische Abschaltung (ca. 20 s nach Trennung des letzten Clients) gilt auch bei per RS485 gestartetem SoftAP.
+- Zugangsdaten und Adresse unverändert: SSID `INKLINO-<UID>`, Passwort `Rotorconfig`, `http://192.168.4.1`.
+
+Beispiel:
+
+```text
+#GETWIFI$
+#ACK_GETWIFI,0$
+#SETWIFI,1$
+#ACK_SETWIFI,1$
+#SETWIFI,0$
+#ACK_SETWIFI,0$
+```
+
 #### `GETDEBUG` / `SETDEBUG` – USB-Debug
 
 - `1` = Elevation ca. 10×/s auf USB-CDC (115200 Baud) ausgeben
@@ -386,6 +479,10 @@ Jeder **erfolgreiche SET**-Befehl speichert die Konfiguration im Flash (NVS-Name
 | Stabil (kein Stoß) | `GETSETTLED` | — | 0 / 1 |
 | Stoß erkannt | `GETSHOCK` | — | 0 / 1 |
 | Stoßschwelle | `GETSHOCKTHS` | `SETSHOCKTHS` | 1…63 (Default 25) |
+| Ruck-Fenster (s) | `GETSHOCKWIN` | `SETSHOCKWIN` | 1…3600 (Default 60) |
+| Rucke bis Fehler | `GETSHOCKLIM` | `SETSHOCKLIM` | 0…60, 0 = aus (Default 5) |
+| Rucke im Fenster | `GETSHOCKCNT` | — | Anzahl |
+| Ruck-Fehler | `GETSHOCKERR` | `SETSHOCKERR,0` (löschen) | 0 / 1 |
 | Achsen tauschen | `GETSWAPXY` | `SETSWAPXY` | 0 / 1 |
 | REF invertieren | `GETINVREF` | `SETINVREF` | 0 / 1 |
 | SENSE invertieren | `GETINVSENS` | `SETINVSENS` | 0 / 1 |
@@ -396,6 +493,7 @@ Jeder **erfolgreiche SET**-Befehl speichert die Konfiguration im Flash (NVS-Name
 | Full-Scale ±1 g | `GETFS1G` | `SETFS1G` | 0 / 1 |
 | Nachkommastellen | `GETELEVDEC` | `SETELEVDEC` | 0 / 1 / 2 |
 | Filter α | `GETFILTER` | `SETFILTER` | 0.01…1.0 |
+| WLAN (SoftAP) | `GETWIFI` | `SETWIFI` | 0 / 1 |
 | USB-Debug | `GETDEBUG` | `SETDEBUG` | 0 / 1 |
 
 ---
@@ -440,6 +538,8 @@ Nach Factory-Reset (Taster beim Boot oder Web-Tab Reset):
 | `FS1G` | 1 (±1 g) |
 | `FILTER` | 0.15 |
 | `SHOCKTHS` | 25 |
+| `SHOCKWIN` | 60 s |
+| `SHOCKLIM` | 5 |
 | `DEBUG` | 0 |
 | UI-Sprache | de |
 
@@ -453,10 +553,11 @@ Nach Factory-Reset (Taster beim Boot oder Web-Tab Reset):
 | Keine RS485-Antwort | A/B vertauscht, Baudrate, gemeinsame Masse, Abschluss |
 | RX-LED blinkt, keine TX-LED | Frame ungültig (fehlendes `#`/`$`, Zeilenumbruch) |
 | SoftAP erscheint nicht | Taster kurz drücken; LBLED auf Doppelblink prüfen |
-| SoftAP verschwindet von allein | Normal: ca. 2,5 s nach Trennung des letzten Clients |
+| SoftAP verschwindet von allein | Normal: ca. 20 s nach Trennung des letzten Clients |
 | Badge bleibt „stabil“ bei langsamer Drehung | Erwartet – nur Stoß/Ruck, Schwelle ggf. verkleinern |
 | Winkel nach Power-Cycle „falsch“ | Montage/Kalibrierung/`MOUNTROT` prüfen |
-| Upload per USB scheitert | Monitor schließen; ggf. BOOT-Modus |
+| SoftAP-OTA schlägt fehl | SoftAP aktiv? Datei ist `firmware.bin` (nicht factory)? |
+| Tag-Connect-Flash scheitert | Adapter sitzt? PROG/RESET-Pads (BOOT-Modus)? Monitor zu? |
 
 ---
 

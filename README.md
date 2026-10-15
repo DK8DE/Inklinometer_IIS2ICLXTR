@@ -1,6 +1,6 @@
 ﻿# Inklinometer DK8DE IIS2ICLX â€“ ESP32-C3
 
-**Firmware:** <!--FW_VERSION-->1.3.2<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
+**Firmware:** <!--FW_VERSION-->1.3.3<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
 
 HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. ZusÃ¤tzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
 
@@ -116,7 +116,16 @@ UngÃ¼ltiger Wert:
 | Anzeige-Nachkommastellen | `GETELEVDEC` | `SETELEVDEC` | `0` / `1` / `2` |
 | EMA-Filter alpha | `GETFILTER` | `SETFILTER` | 0.01 â€¦ 1.0 (grÃ¶ÃŸer = schneller; bei Stabil Ã—0,35 / bei Ruck Ã—1,8) |
 | Stoßschwelle (WAKE_UP_THS) | `GETSHOCKTHS` | `SETSHOCKTHS` | 1â€¦63 (kleiner = empfindlicher; 1 LSB â‰ˆ FS/64; Default 25) |
+| Ruck-Fenster (s) | `GETSHOCKWIN` | `SETSHOCKWIN` | 1â€¦3600 (Default 60) |
+| Rucke bis Fehler | `GETSHOCKLIM` | `SETSHOCKLIM` | 0â€¦60, `0` = Ãœberwachung aus (Default 5) |
+| Rucke im aktuellen Fenster | `GETSHOCKCNT` | â€” | Anzahl |
+| Ruck-Fehler | `GETSHOCKERR` | `SETSHOCKERR,0` (nur lÃ¶schen) | `1` = Fehler aktiv |
+| WLAN (SoftAP) ein/aus | `GETWIFI` | `SETWIFI` | `0` / `1` (nicht im NVS; nach Neustart aus) |
 | USB-Debug | `GETDEBUG` | `SETDEBUG` | `0` / `1` |
+
+### Ruck-Überwachung
+
+Jede fallende Flanke von INT2 (stabil → Ruck) zählt als ein Ruck. Erreichen `SHOCKLIM` Rucke innerhalb von `SHOCKWIN` Sekunden (gleitendes Fenster), wird der **Ruck-Fehler** gesetzt. Er bleibt bis zum Löschen aktiv (`#SETSHOCKERR,0$` oder Web-Button „Ruck-Fehler löschen“); beim Löschen startet der Zähler neu. Der Fehler wird **nicht** im NVS gespeichert (nach Neustart gelöscht), die Einstellungen `SHOCKWIN`/`SHOCKLIM` schon. Er hat keinen Einfluss auf die LBLED (die zeigt nur Sensor-Fehler).
 
 ### Rauschfilter (INT1 / INT2)
 
