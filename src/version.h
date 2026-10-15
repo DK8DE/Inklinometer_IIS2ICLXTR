@@ -6,6 +6,6 @@
 
 #define FW_VERSION_MAJOR 1
 #define FW_VERSION_MINOR 3
-#define FW_VERSION_PATCH 3
+#define FW_VERSION_PATCH 4
 
-#define FW_VERSION_STR "1.3.3"
+#define FW_VERSION_STR "1.3.4"
