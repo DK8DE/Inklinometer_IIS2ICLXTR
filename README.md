@@ -1,6 +1,6 @@
 ﻿# Inklinometer DK8DE IIS2ICLX â€“ ESP32-C3
 
-**Firmware:** <!--FW_VERSION-->1.3.3<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
+**Firmware:** <!--FW_VERSION-->1.3.4<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
 
 HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. ZusÃ¤tzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
 
