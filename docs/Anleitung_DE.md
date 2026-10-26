@@ -1,4 +1,4 @@
-# Inklinometer DK8DE IIS2ICLX - Bedienungs- und Einrichtungsanleitung
+﻿# Inklinometer DK8DE IIS2ICLX - Bedienungs- und Einrichtungsanleitung
 
 **Firmware:** siehe [`src/version.h`](../src/version.h) bzw. Anzeige in der Web-UI  
 **Sprache:** Deutsch · English: [`Manual_EN.md`](Manual_EN.md)
@@ -75,7 +75,7 @@ Die **LBLED** zeigt den Betriebszustand der Firmware (nicht den RS485-Verkehr):
 | Zustand | LED-Muster |
 |---------|------------|
 | Normalbetrieb | **500 ms an / 500 ms aus** (gleichmäßiges Blinken) |
-| SoftAP / WLAN-Config aktiv | **zwei kurze Blitze**, danach **ca. 250 ms Pause**, dann wiederholen |
+| SoftAP / WLAN-Config aktiv | **200 ms an → 200 ms aus → 200 ms an → 600 ms Pause**, dann wiederholen |
 | Fehler (z. B. Sensor nicht erreichbar) | **dauerhaft an** |
 | Werkreset beim Boot bestätigt | **3× schnell blinken**, danach Neustart |
 
@@ -298,6 +298,17 @@ Jeder **erfolgreiche SET**-Befehl speichert die Konfiguration im Flash (NVS-Name
 - **Nachkommastellen:** abhängig von `ELEVDEC` (0 / 1 / 2).
 - **Kein SET** – nur Lesen.
 
+#### `GETVERSION` – Firmware-Version
+
+- **Format:** `#GETVERSION$`
+- **Antwort:** `#ACK_GETVERSION,<semver>$` (z. B. `1.3.5`)
+- **Kein SET**
+
+#### `GETUID` – Geräte-UID
+
+- **Format:** `#GETUID$`
+- **Antwort:** `#ACK_GETUID,<6 Hex>$` (SoftAP-Suffix `INKLINO-<UID>`)
+- **Kein SET**
 #### `GETSETTLED` – Mechanik stabil?
 
 - **Format:** `#GETSETTLED$`

@@ -1,6 +1,6 @@
 ﻿# Inklinometer DK8DE IIS2ICLX â€“ ESP32-C3
 
-**Firmware:** <!--FW_VERSION-->1.3.4<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
+**Firmware:** <!--FW_VERSION-->1.3.6<!--/FW_VERSION--> (einzige Quelle: [`src/version.h`](src/version.h))
 
 HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfiguration per RS485-Textprotokoll. ZusÃ¤tzlich SoftAP-Web-UI mit Live-Winkel, Konfiguration und Dual-OTA. Einstellungen werden im NVS gespeichert.
 
@@ -27,7 +27,7 @@ HochauflÃ¶sende Antennen-Elevation Ã¼ber ST IIS2ICLX, Abfrage und Konfigurat
 | Zustand | LED |
 |---------|-----|
 | Loop lÃ¤uft normal | **500 ms an / 500 ms aus** |
-| SoftAP / Config-Mode aktiv | **2Ã— kurz blinken**, dann **250 ms Pause** (wiederholt) |
+| SoftAP / Config-Mode aktiv | **200 ms an / 200 ms aus / 200 ms an / 600 ms Pause** (wiederholt) |
 | Fehler (z. B. Sensor-Init / Full-Scale schreiben) | **dauerhaft an** |
 | Werkreset beim Boot bestÃ¤tigt | **3Ã— schnell blinken**, dann Neustart |
 
@@ -103,6 +103,8 @@ UngÃ¼ltiger Wert:
 | Bedeutung | GET | SET | Wertebereich |
 |-----------|-----|-----|--------------|
 | Elevation (gefiltert) | `GETDG` | â€” | Winkel in Â°, Nachkommastellen laut `ELEVDEC` |
+| Firmware-Version | `GETVERSION` | — | SemVer, z. B. `1.3.6` |
+| Geräte-UID (SoftAP-Suffix) | `GETUID` | — | 6 Hex-Zeichen, SSID `INKLINO-<UID>` |
 | Mechanik stabil (INT2, kein Stoß) | `GETSETTLED` | â€” | `1` = stabil, `0` = Ruck/Stoß |
 | Stoß erkannt (INT2, invertiert) | `GETSHOCK` | â€” | `1` = Ruck/Stoß, `0` = stabil |
 | Achsen tauschen (swapXY) | `GETSWAPXY` | `SETSWAPXY` | `0` / `1` |

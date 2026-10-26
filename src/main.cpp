@@ -1,4 +1,4 @@
-/**
+﻿/**
  * IIS2ICLX – Antennen-Elevation + RS485 GET/SET-Protokoll
  * ESP32-C3 | SDA=GPIO4 | SCL=GPIO5 | INT1=GPIO6 | INT2=GPIO7
  * RS485: UART0 TX=GPIO21 RX=GPIO20 @ 115200
@@ -19,6 +19,7 @@
 
 #include "app_api.h"
 #include "web_ui.h"
+#include "version.h"
 
 static constexpr int PIN_SDA = 4;
 static constexpr int PIN_SCL = 5;
@@ -1067,6 +1068,20 @@ static void handleFrame(char *frame) {
     return;
   }
 
+  // --- GETVERSION (Firmware-SemVer) ---
+  if (isGet && strcmp(name, "VERSION") == 0) {
+    protoAck("GETVERSION", FW_VERSION_STR);
+    return;
+  }
+
+  // --- GETUID (SoftAP-Suffix, z.B. C3A1B2) ---
+  if (isGet && strcmp(name, "UID") == 0) {
+    char uid[16];
+    deviceUid(uid, sizeof(uid));
+    protoAck("GETUID", uid);
+    return;
+  }
+
   // --- Bool-Config Helper ---
   auto handleBool = [&](const char *key, bool &var) {
     char cmd[32];
@@ -1384,7 +1399,8 @@ static void pollProtocol() {
 /**
  * LBLED:
  * - Fehler: dauerhaft an
- * - SoftAP aktiv: zwei kurze Blitze, dann 250 ms Pause
+ * - SoftAP aktiv (Taster oder RS485 SETWIFI): zwei Blitze, dann Pause
+ *   200 ms an → 200 ms aus → 200 ms an → 600 ms aus → von vorne
  * - normal: 500 ms an / 500 ms aus
  */
 static void updateLbLed() {
@@ -1393,12 +1409,11 @@ static void updateLbLed() {
     return;
   }
   if (webUiIsActive()) {
-    // 70 ms an, 70 ms aus, 70 ms an, 250 ms Pause → Zyklus 460 ms
-    constexpr uint32_t BLINK_ON = 70;
-    constexpr uint32_t BLINK_GAP = 70;
-    constexpr uint32_t PAUSE_MS = 250;
+    constexpr uint32_t BLINK_ON = 200;
+    constexpr uint32_t BLINK_GAP = 200;
+    constexpr uint32_t PAUSE_MS = 600;
     constexpr uint32_t CYCLE =
-        BLINK_ON + BLINK_GAP + BLINK_ON + PAUSE_MS;  // 460
+        BLINK_ON + BLINK_GAP + BLINK_ON + PAUSE_MS;  // 1200
     const uint32_t t = millis() % CYCLE;
     const bool on =
         (t < BLINK_ON) ||
